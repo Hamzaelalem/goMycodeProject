@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Mirrors `Recommendation` from /types/recommendation.ts
+model Recommendation {
+  id             String   @id
+  rank           Int
+  title          String
+  region         String
+  sector         String
+  country        String
+  capitalUsd     Float
+  irrPct         Float
+  horizonYears   Int
+  riskLevel      String
+  confidence     Int
+  status         String
+  tags           String[]
+  rationale      String   @db.Text
+  scoreBreakdown Json
+  modelVersion   String
+  generatedAt    DateTime
+  riskFactors    String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  auditLogs RecommendationAuditLog[]
+
+  @@map("recommendations")
+}
+
+model RecommendationAuditLog {
+  id                 String         @id @default(cuid())
+  recommendationId   String
+  action             String
+  comment            String?        @db.Text
+  at                 DateTime       @default(now())
+  recommendation     Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([recommendationId])
+  @@map("recommendation_audit_logs")
+}
+
+/// Mirrors `Signal` from /types/signal.ts
+model Signal {
+  id               String   @id
+  title            String
+  body             String   @db.Text
+  type             String
+  severity         String
+  sentiment        Float
+  reach            Int
+  timestamp        DateTime
+  source           String
+  country          String
+  region           String
+  sector           String
+  riskFactor       String?
+  workflowItemId   String?
+
+  @@index([timestamp])
+  @@map("signals")
+}
+
+/// Mirrors `RiskFactorScore` from /types/risk.ts
+model RiskFactorScore {
+  id             String   @id
+  name           String
+  score          Int
+  previousScore  Int
+  sparklineData  Float[]
+  source         String
+  region         String
+
+  @@map("risk_factor_scores")
+}
+
+/// One row per ESG sector; `payload` stores `{ kpis, scores }` from `EsgSectorInputs`.
+model EsgSectorInput {
+  sector  String @id
+  payload Json
+
+  @@map("esg_sector_inputs")
+}
+
+/// Single default bundle: inputs + derived cards + projection (JSON).
+model ScenarioSnapshot {
+  id              String   @id @default(cuid())
+  key             String   @unique @default("default")
+  defaultInputs   Json
+  scenarioCards   Json
+  irrProjection   Json
+  updatedAt       DateTime @updatedAt
+
+  @@map("scenario_snapshots")
+}
+
+/// Mirrors `WorkflowLogEntry` from /types/workflow.ts
+model WorkflowLogEntry {
+  id                 String   @id
+  recommendationId String
+  status             String
+  actor              String
+  role               String
+  timestamp          DateTime
+  comment            String   @db.Text
+
+  @@index([recommendationId])
+  @@map("workflow_log_entries")
+}
+
+/// RAG document chunks — each row is one chunk of a source document.
+/// The embedding column is a 768-dim vector produced by nomic-embed-text.
+model Document {
+  id        String   @id @default(cuid())
+  title     String
+  source    String
+  chunk     Int
+  content   String   @db.Text
+  embedding Unsupported("vector(768)")?
+  createdAt DateTime @default(now())
+
+  @@map("documents")
+}
