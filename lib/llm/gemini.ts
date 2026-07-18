@@ -1,6 +1,6 @@
 const GEMINI_BASE_URL =
   process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
-export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{

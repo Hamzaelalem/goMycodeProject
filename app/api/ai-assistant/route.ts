@@ -5,7 +5,7 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
 
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
 
 const PERSONAS: Record<string, string> = {
   standard: `You are a standard investment analyst AI assistant for the CLIENT Executive Command Center.
