@@ -3,15 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { useDebounce } from "@/lib/hooks/useDebounce";
-import { explainScenarioApi } from "@/lib/api/mutations";
+import { computeScenariosApi, explainScenarioApi } from "@/lib/api/mutations";
+import { mockPortfolio } from "@/mock-data/portfolio";
 import type { IrrProjectionPoint } from "@/types";
 import {
+  baseFromPortfolio,
   baseFromRecommendation,
-  computeIrrProjection,
-  computeMonteCarloBands,
-  computeScenarioCards,
-  computeSensitivity,
-  expectedIrr,
+  computeScenarioBundle,
+  type ScenarioBundle,
 } from "@/lib/scenarios/compute";
 
 type ComparedProjectionPoint = IrrProjectionPoint & Record<string, number>;
@@ -42,17 +41,44 @@ export function useScenariosViewModel() {
   const [narrative, setNarrative] = useState<string | null>(null);
   const [narrativeModel, setNarrativeModel] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
+  const [serverBundle, setServerBundle] = useState<{ key: string; bundle: ScenarioBundle } | null>(
+    null,
+  );
 
   useEffect(() => {
     void loadSavedScenariosAction();
   }, [loadSavedScenariosAction]);
 
-  const base = useMemo(() => baseFromRecommendation(selected), [selected]);
-  const cards = useMemo(() => computeScenarioCards(debounced, base), [debounced, base]);
-  const baseProjection = useMemo(() => computeIrrProjection(cards), [cards]);
-  const expectedIrrPct = useMemo(() => expectedIrr(cards), [cards]);
-  const sensitivity = useMemo(() => computeSensitivity(debounced, base), [debounced, base]);
-  const monteCarloBands = useMemo(() => computeMonteCarloBands(debounced, base), [debounced, base]);
+  // Portfolio-level base case (AUM-weighted). A selected recommendation overrides IRR/risk
+  // for deal-in-context modelling while keeping the portfolio's AUM anchor.
+  const portfolioBase = useMemo(() => baseFromPortfolio(mockPortfolio), []);
+  const base = useMemo(
+    () => baseFromRecommendation(selected, portfolioBase),
+    [selected, portfolioBase],
+  );
+
+  // Instant client-side computation for responsive slider feedback / offline fallback.
+  const clientBundle = useMemo(() => computeScenarioBundle(debounced, base), [debounced, base]);
+
+  // Authoritative server-side computation (the "real computation backend"). Keyed by the
+  // inputs + selected deal so we only trust the server result once it matches current state.
+  const computeKey = useMemo(
+    () => JSON.stringify([debounced, selected?.id ?? null]),
+    [debounced, selected?.id],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    computeScenariosApi(debounced, selected?.id, controller.signal).then((result) => {
+      if (result) setServerBundle({ key: computeKey, bundle: result });
+    });
+    return () => controller.abort();
+  }, [computeKey, debounced, selected?.id]);
+
+  // Prefer the server bundle only when it corresponds to the current inputs; otherwise the
+  // instant client bundle keeps the UI responsive (no stale values, no flicker).
+  const bundle = serverBundle?.key === computeKey ? serverBundle.bundle : clientBundle;
+  const { cards, projection: baseProjection, expectedIrr: expectedIrrPct, sensitivity, monteCarlo: monteCarloBands } = bundle;
 
   // Saved sandboxes are scoped: global ones (no scope prefix) plus those tagged to the
   // recommendation currently in context. Keys are stored as `${recId}::${name}`.
@@ -169,6 +195,7 @@ export function useScenariosViewModel() {
 
   return {
     selectedRecommendationTitle,
+    portfolio: mockPortfolio,
     inputs,
     active,
     cards,

@@ -63,6 +63,7 @@ function SliderControl({
 export default function ScenariosPage() {
   const {
     selectedRecommendationTitle,
+    portfolio,
     inputs,
     active,
     cards,
@@ -90,12 +91,18 @@ export default function ScenariosPage() {
   } = useScenariosViewModel();
 
   const baseCaseIrr = cards.find((c) => c.id === "base")?.portfolioIrrPct ?? expectedIrrPct;
+  const isPortfolioContext = selectedRecommendationTitle === "None selected";
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Viewing context: <span className="font-medium text-foreground">{selectedRecommendationTitle}</span>
+          Viewing context:{" "}
+          <span className="font-medium text-foreground">
+            {isPortfolioContext
+              ? `Full portfolio · $${portfolio.totalAumB}B AUM · ${portfolio.holdings.length} holdings`
+              : selectedRecommendationTitle}
+          </span>
         </p>
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5">
           <span className="text-xs text-muted-foreground">Expected IRR</span>

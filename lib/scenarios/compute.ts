@@ -1,5 +1,6 @@
 import type {
   IrrProjectionPoint,
+  PortfolioSummary,
   Recommendation,
   RiskLevel,
   ScenarioCard,
@@ -34,18 +35,31 @@ const RISK_LEVEL_SCORE: Record<RiskLevel, number> = {
 };
 
 /**
+ * Derive the scenario anchor from the whole portfolio (AUM-weighted IRR/risk + total AUM).
+ * This is the portfolio-level base case the Scenario Modelling Engine works from.
+ */
+export function baseFromPortfolio(portfolio: PortfolioSummary): ScenarioBase {
+  return {
+    baseIrr: portfolio.weightedIrrPct,
+    baseAumB: portfolio.totalAumB,
+    baseRisk: portfolio.weightedRiskScore,
+  };
+}
+
+/**
  * Derive the scenario anchor from the recommendation currently in context so the
- * projections reflect the selected deal instead of fixed constants. AUM stays at the
- * portfolio anchor because a single deal's capital is not the portfolio AUM.
+ * projections reflect the selected deal instead of fixed constants. AUM comes from the
+ * fallback (portfolio) base because a single deal's capital is not the portfolio AUM.
  */
 export function baseFromRecommendation(
-  rec?: Pick<Recommendation, "irrPct" | "riskLevel"> | null
+  rec?: Pick<Recommendation, "irrPct" | "riskLevel"> | null,
+  fallback: ScenarioBase = DEFAULT_BASE
 ): ScenarioBase {
-  if (!rec) return DEFAULT_BASE;
+  if (!rec) return fallback;
   return {
-    baseIrr: Number.isFinite(rec.irrPct) ? rec.irrPct : DEFAULT_BASE.baseIrr,
-    baseAumB: DEFAULT_BASE.baseAumB,
-    baseRisk: RISK_LEVEL_SCORE[rec.riskLevel] ?? DEFAULT_BASE.baseRisk,
+    baseIrr: Number.isFinite(rec.irrPct) ? rec.irrPct : fallback.baseIrr,
+    baseAumB: fallback.baseAumB,
+    baseRisk: RISK_LEVEL_SCORE[rec.riskLevel] ?? fallback.baseRisk,
   };
 }
 
@@ -243,4 +257,26 @@ export function computeMonteCarloBands(
       p90: round1(percentile(vals, 0.9)),
     };
   });
+}
+
+export interface ScenarioBundle {
+  base: ScenarioBase;
+  cards: ScenarioCard[];
+  projection: IrrProjectionPoint[];
+  expectedIrr: number;
+  sensitivity: SensitivityBar[];
+  monteCarlo: McBandPoint[];
+}
+
+/** Full scenario computation for a given set of inputs + anchor. Used by the API and client. */
+export function computeScenarioBundle(inputs: ScenarioInputs, base: ScenarioBase): ScenarioBundle {
+  const cards = computeScenarioCards(inputs, base);
+  return {
+    base,
+    cards,
+    projection: computeIrrProjection(cards),
+    expectedIrr: expectedIrr(cards),
+    sensitivity: computeSensitivity(inputs, base),
+    monteCarlo: computeMonteCarloBands(inputs, base),
+  };
 }

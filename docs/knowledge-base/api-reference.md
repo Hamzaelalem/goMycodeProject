@@ -110,6 +110,13 @@ Legend: **params** = query string; **body** = JSON. Success/error status codes n
 - **Response:** `201` snapshot object · `500 { error }`.
 - **Consumers:** `saveScenarioBundleApi` ← `saveScenarioAction` (store).
 
+### `POST /api/scenarios/compute`
+- **Runtime:** `nodejs`. The Scenario Modelling Engine's server-side computation backend.
+- **Body:** `{ inputs: {oilPrice,fxDeltaPct,interestRate,inflationRate}, recommendationId? }`. Invalid/missing numeric inputs → `400`.
+- **Logic:** base anchor = `baseFromPortfolio(mockPortfolio)`; if `recommendationId` resolves, `baseFromRecommendation(rec, portfolioBase)` overrides IRR/risk. Returns `computeScenarioBundle(inputs, base)`.
+- **Response:** `200 { base, cards, projection, expectedIrr, sensitivity, monteCarlo }` · `400 { error }`.
+- **Consumers:** `computeScenariosApi` ← `useScenariosViewModel` (source of truth; client `computeScenarioBundle` is the instant fallback).
+
 ### `POST /api/scenarios/explain`
 - **Runtime:** `nodejs`.
 - **Body:** `{ inputs, cards, expectedIrr, sensitivity, recommendation? }` (all optional; grounds the prompt).

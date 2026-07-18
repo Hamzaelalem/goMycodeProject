@@ -1,6 +1,7 @@
-import type { EsgSectorInputs, Recommendation } from "@/types";
+import type { EsgSectorInputs, Recommendation, ScenarioInputs } from "@/types";
 import type { GenerateRecommendationRequest } from "@/lib/recommendations/schema";
 import type { IngestMode, IngestSummary } from "@/lib/ingest/types";
+import type { ScenarioBundle } from "@/lib/scenarios/compute";
 
 export type UpdateRecommendationStatusPayload = {
   status: Recommendation["status"];
@@ -80,6 +81,25 @@ export async function explainScenarioApi(body: {
     });
     if (!res.ok) return null;
     return (await res.json()) as { narrative: string; model: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function computeScenariosApi(
+  inputs: ScenarioInputs,
+  recommendationId?: string,
+  signal?: AbortSignal,
+): Promise<ScenarioBundle | null> {
+  try {
+    const res = await fetch("/api/scenarios/compute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inputs, recommendationId }),
+      signal,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ScenarioBundle;
   } catch {
     return null;
   }

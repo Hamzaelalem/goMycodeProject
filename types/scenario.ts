@@ -23,3 +23,20 @@ export interface IrrProjectionPoint {
   bear: number;
   stress: number;
 }
+
+export interface PortfolioHolding {
+  id: string;
+  name: string;
+  sector: string;
+  region: string;
+  aumUsdB: number; // assets under management, $B
+  irrPct: number; // expected IRR %
+  riskScore: number; // 0-100 composite risk
+}
+
+export interface PortfolioSummary {
+  totalAumB: number;
+  weightedIrrPct: number; // AUM-weighted IRR
+  weightedRiskScore: number; // AUM-weighted composite risk
+  holdings: PortfolioHolding[];
+}
