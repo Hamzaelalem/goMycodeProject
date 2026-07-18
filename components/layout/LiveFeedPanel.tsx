@@ -3,16 +3,20 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SeverityBar } from "@/components/ui/severity-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useFilteredSignals } from "@/lib/hooks/useCrossModuleFilter";
-import { useNavigateFromSignal } from "@/lib/hooks/useSignalNavigation";
-import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { TimeAgo } from "@/components/ui/time-ago";
+import { Button } from "@/components/ui/button";
+import { Brain, Gauge, ArrowUpRight } from "lucide-react";
+import { useLiveFeedPanelViewModel } from "./useLiveFeedPanelViewModel";
 
 export function LiveFeedPanel() {
-  const navigateFromSignal = useNavigateFromSignal();
-  const signals = useGlobalStore((s) => s.signals);
-  const selectedSignal = useGlobalStore((s) => s.selectedSignal);
-  const filtered = useFilteredSignals(signals).slice(0, 10);
+  const {
+    selectedSignal,
+    filtered,
+    navigateFromSignal,
+    handleSelect,
+    handleAIAssessment,
+    handleStressTest,
+  } = useLiveFeedPanelViewModel();
 
   return (
     <aside className="hidden h-full w-[300px] shrink-0 border-l border-border bg-background lg:block">
@@ -31,7 +35,7 @@ export function LiveFeedPanel() {
                     ? "w-full rounded-xl border-2 border-ring bg-card p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     : "w-full rounded-xl border border-border bg-card p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 }
-                onClick={() => navigateFromSignal(s)}
+                onClick={() => handleSelect(s)}
               >
                 <SeverityBar severity={s.severity}>
                   <div className="flex items-start justify-between gap-2">
@@ -45,6 +49,52 @@ export function LiveFeedPanel() {
                       {s.region} · {s.sector}
                     </span>
                   </div>
+                  {selectedSignal?.id === s.id && (
+                    <div className="mt-3 space-y-2 border-t border-border/60 pt-3 text-xs">
+                      <p className="text-muted-foreground leading-relaxed">{s.body}</p>
+                      {s.riskFactor && (
+                        <p className="font-semibold text-foreground">
+                          Factor: <span className="font-normal text-muted-foreground">{s.riskFactor}</span>
+                        </p>
+                      )}
+                      <div className="flex flex-col gap-1.5 pt-1">
+                        <div className="flex gap-2">
+                          <Button
+                            size="xs"
+                            className="flex-1 text-[11px] h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAIAssessment(s);
+                            }}
+                          >
+                            <Brain className="mr-1 h-3.5 w-3.5" /> AI Assess
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="flex-1 text-[11px] h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStressTest(s);
+                            }}
+                          >
+                            <Gauge className="mr-1 h-3.5 w-3.5" /> Stress Test
+                          </Button>
+                        </div>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="w-full text-[11px] h-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigateFromSignal(s);
+                          }}
+                        >
+                          <ArrowUpRight className="mr-1 h-3.5 w-3.5" /> Investigate
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </SeverityBar>
               </button>
             </li>
@@ -59,4 +109,5 @@ export function LiveFeedPanel() {
     </aside>
   );
 }
+
 

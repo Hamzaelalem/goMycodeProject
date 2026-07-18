@@ -1,15 +1,38 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { searchDocuments, formatContextBlock } from "@/lib/rag/search";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
 
-const SYSTEM_PROMPT = `You are an investment analyst AI assistant for the CLIENT Executive Command Center.
+const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+
+const PERSONAS: Record<string, string> = {
+  standard: `You are a standard investment analyst AI assistant for the CLIENT Executive Command Center.
 You help portfolio executives understand AI-generated recommendations, risk factors, ESG scores, and scenario outcomes.
 Always be concise, data-specific, and cite the numbers from the provided context.
 Never give generic financial advice — always reference the specific portfolio data provided.
 When retrieved documents are available, cite them by name (e.g. "According to the Solar Sector Outlook...").
-Keep responses to 3-5 sentences unless the user explicitly asks for more detail.`;
+Keep responses to 3-5 sentences unless the user explicitly asks for more detail.`,
+
+  risk: `You are a Risk Specialist AI assistant for the CLIENT Executive Command Center.
+You help portfolio executives analyze potential downsides, credit volatility, market liquidity, and operational exposures.
+Always prioritize capital preservation, risk-weight assessments, and stress metrics.
+Critically analyze every recommendation from a risk-first perspective. Cite specific risk factor scores from the context.
+Keep responses to 3-5 sentences.`,
+
+  esg: `You are an ESG Advocate AI assistant for the CLIENT Executive Command Center.
+You help portfolio executives evaluate Environmental, Social, and Governance compliance and taxonomy alignment.
+Always prioritize sustainability parameters, greenhouse gas profiles, green offtake PPAs, and board governance.
+Cite specific ESG sector ratings, KPI values, and overall grades from the context.
+Keep responses to 3-5 sentences.`,
+
+  conservative: `You are a Conservative Analyst AI assistant for the CLIENT Executive Command Center.
+You help portfolio executives pursue secure, steady, and low-volatility investment paths.
+Always prioritize defensive asset sectors (like Utilities or Water), secure IRR yields, and long-term liquidity.
+Caution against speculative high-risk bets or high leverage options. Cite specific metrics.
+Keep responses to 3-5 sentences.`
+};
 
 interface Message {
   role: "user" | "assistant";
@@ -29,6 +52,9 @@ export async function POST(req: NextRequest) {
   const history: Array<{ role: string; text: string }> = Array.isArray(body?.messages)
     ? body.messages
     : [];
+  const modelType = String(body?.model ?? "gemini");
+  const personaKey = String(body?.persona ?? "standard");
+  const systemPrompt = PERSONAS[personaKey] || PERSONAS.standard;
 
   const lastUserMessage = [...history].reverse().find((m) => m.role === "user");
   const userPrompt = String(lastUserMessage?.text ?? "Tell me about the current portfolio status.");
@@ -62,7 +88,99 @@ export async function POST(req: NextRequest) {
 
   const fullUserMessage = `${contextParts.join("\n")}\n\nUser question: ${userPrompt}`;
 
-  // ── Build conversation history for Ollama ──────────────────────────────────
+  // ── Route 1: Gemini Streaming (via SSE) ────────────────────────────────────
+  if (modelType === "gemini" && process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const geminiHistory = history.map((m) => ({
+      role: m.role === "user" ? "user" : "model",
+      parts: [{ text: m.text }],
+    }));
+
+    if (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role === "user") {
+      geminiHistory[geminiHistory.length - 1].parts[0].text = fullUserMessage;
+    } else {
+      geminiHistory.push({
+        role: "user",
+        parts: [{ text: fullUserMessage }]
+      });
+    }
+
+    try {
+      const geminiRes = await fetch(
+        `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: geminiHistory,
+            systemInstruction: {
+              parts: [{ text: systemPrompt }]
+            },
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 512,
+            }
+          })
+        }
+      );
+
+      if (!geminiRes.ok || !geminiRes.body) {
+        throw new Error(`Gemini stream call failed: ${geminiRes.statusText}`);
+      }
+
+      const encoder = new TextEncoder();
+      const geminiStream = geminiRes.body;
+
+      const readable = new ReadableStream({
+        async start(controller) {
+          const reader = geminiStream.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() ?? "";
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith("data: ")) {
+                  const jsonStr = trimmed.slice(6);
+                  try {
+                    const json = JSON.parse(jsonStr);
+                    const token = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+                    if (token) controller.enqueue(encoder.encode(token));
+                  } catch { /* parse error — skip */ }
+                }
+              }
+            }
+          } catch { /* client disconnected */ }
+          finally {
+            reader.releaseLock();
+            try { controller.close(); } catch { /* already closed */ }
+          }
+        },
+      });
+
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-AI-Model": `gemini:${GEMINI_MODEL}`,
+          "X-RAG-Used": ragContextBlock ? "true" : "false",
+        },
+      });
+
+    } catch (geminiError) {
+      console.warn("[AI Assistant] Gemini stream failed, falling back to Ollama:", geminiError);
+    }
+  }
+
+  // ── Route 2: Ollama Local Streaming ────────────────────────────────────────
   const recentHistory = history.slice(-10);
   const messages: Message[] = [
     ...recentHistory.slice(0, -1).map((m) => ({
@@ -72,7 +190,6 @@ export async function POST(req: NextRequest) {
     { role: "user" as const, content: fullUserMessage },
   ];
 
-  // ── Call Ollama streaming endpoint ─────────────────────────────────────────
   let ollamaRes: Response;
   try {
     ollamaRes = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
@@ -80,14 +197,14 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: OLLAMA_MODEL,
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
         stream: true,
         options: { temperature: 0.3, num_predict: 512 },
       }),
     });
   } catch {
     const fallback =
-      "AI assistant is currently unavailable. Please ensure Ollama is running locally (`ollama serve`) and the model is pulled (`ollama pull llama3.2`).";
+      "AI assistant is currently unavailable. Please ensure Ollama is running locally (`ollama serve`) and the model is pulled (`ollama pull llama3.2`) or configure your Gemini API Key in .env.local.";
     return new Response(fallback, {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
@@ -101,7 +218,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── Stream Ollama NDJSON → plain text tokens to client ────────────────────
   const encoder = new TextEncoder();
   const ollamaStream = ollamaRes.body;
 
@@ -143,7 +259,7 @@ export async function POST(req: NextRequest) {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
-      "X-Ollama-Model": OLLAMA_MODEL,
+      "X-AI-Model": `ollama:${OLLAMA_MODEL}`,
       "X-RAG-Used": ragContextBlock ? "true" : "false",
     },
   });

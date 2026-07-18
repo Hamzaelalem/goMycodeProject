@@ -1,13 +1,11 @@
 "use client";
 
 import { Bell } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
-import { useGlobalStore } from "@/lib/store/useGlobalStore";
+import { useNotificationBellViewModel } from "./useNotificationBellViewModel";
 
 export function NotificationBell() {
-  const unread = useGlobalStore((s) => s.unreadSignalCount);
-  const markSignalsRead = useGlobalStore((s) => s.markSignalsRead);
+  const { unread, markSignalsRead } = useNotificationBellViewModel();
 
   return (
     <div className="relative">
@@ -29,3 +27,4 @@ export function NotificationBell() {
     </div>
   );
 }
+

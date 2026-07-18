@@ -1,56 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
 import { StatusTimeline } from "@/components/ui/StatusTimeline";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGlobalStore } from "@/lib/store/useGlobalStore";
-import type { WorkflowStatus } from "@/types";
-
-function mapStatus(s: string): WorkflowStatus {
-  if (s === "pending_review") return "PENDING_REVIEW";
-  if (s === "under_review") return "UNDER_REVIEW";
-  if (s === "approved") return "APPROVED";
-  if (s === "rejected") return "REJECTED";
-  return "EXECUTED";
-}
+import { useWorkflowViewModel, mapStatus } from "./useWorkflowViewModel";
 
 export default function WorkflowPage() {
-  const workflowLogEntries = useGlobalStore((s) => s.workflowLogEntries);
-  const recs = useGlobalStore((s) => s.recommendations);
-  const focusId = useGlobalStore((s) => s.workflowFocusRecommendationId);
-  const setWorkflowFocusRecommendationId = useGlobalStore((s) => s.setWorkflowFocusRecommendationId);
-  const openAIDrawer = useGlobalStore((s) => s.openAIDrawer);
-  const updateRecommendationStatus = useGlobalStore((s) => s.updateRecommendationStatus);
-  const [selectedId, setSelectedId] = useState(recs[0]?.id ?? "");
-  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  useEffect(() => {
-    if (!focusId) return;
-    const exists = recs.some((r) => r.id === focusId);
-    if (!exists) {
-      setWorkflowFocusRecommendationId(null);
-      return;
-    }
-    setSelectedId(focusId);
-    const id = focusId;
-    requestAnimationFrame(() => {
-      rowRefs.current[id]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      setWorkflowFocusRecommendationId(null);
-    });
-  }, [focusId, recs, setWorkflowFocusRecommendationId]);
-  const [comment, setComment] = useState("");
-  const current = recs.find((r) => r.id === selectedId);
-  const entries = useMemo(
-    () => workflowLogEntries.filter((w) => w.recommendationId === selectedId),
-    [selectedId, workflowLogEntries],
-  );
-  const pending = recs.filter((r) => r.status === "pending_review").length;
-  const approved = recs.filter((r) => r.status === "approved").length;
-  const rejected = recs.filter((r) => r.status === "rejected").length;
+  const {
+    recs,
+    selectedId,
+    setSelectedId,
+    comment,
+    setComment,
+    rowRefs,
+    current,
+    entries,
+    kpis,
+    handleApprove,
+    handleReject,
+    handleGetAIInput,
+  } = useWorkflowViewModel();
 
   if (!recs.length) {
     return <div className="rounded-xl border border-border p-4 text-sm text-muted-foreground">All recommendations reviewed ✓</div>;
@@ -59,10 +30,10 @@ export default function WorkflowPage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-5">
-        <Card><CardContent className="p-3 text-sm">Total {recs.length}</CardContent></Card>
-        <Card><CardContent className="p-3 text-sm">Pending {pending}</CardContent></Card>
-        <Card><CardContent className="p-3 text-sm">Approved {approved}</CardContent></Card>
-        <Card><CardContent className="p-3 text-sm">Rejected {rejected}</CardContent></Card>
+        <Card><CardContent className="p-3 text-sm">Total {kpis.total}</CardContent></Card>
+        <Card><CardContent className="p-3 text-sm">Pending {kpis.pending}</CardContent></Card>
+        <Card><CardContent className="p-3 text-sm">Approved {kpis.approved}</CardContent></Card>
+        <Card><CardContent className="p-3 text-sm">Rejected {kpis.rejected}</CardContent></Card>
         <Card><CardContent className="p-3 text-sm">Avg approval: 2.4d</CardContent></Card>
       </div>
       <div className="grid gap-3 lg:grid-cols-[35%_65%]">
@@ -95,13 +66,13 @@ export default function WorkflowPage() {
             <div className="space-y-2 rounded-xl border border-border p-3">
               <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comment…" />
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => openAIDrawer("What should I consider before approving this recommendation?")}>
+                <Button variant="secondary" onClick={handleGetAIInput}>
                   Get AI input ↗
                 </Button>
                 {current ? (
                   <>
-                    <Button onClick={() => updateRecommendationStatus(current.id, "approved", comment)}>Approve</Button>
-                    <Button variant="destructive" onClick={() => updateRecommendationStatus(current.id, "rejected", comment)}>Reject</Button>
+                    <Button onClick={handleApprove}>Approve</Button>
+                    <Button variant="destructive" onClick={handleReject}>Reject</Button>
                   </>
                 ) : null}
               </div>
@@ -112,4 +83,5 @@ export default function WorkflowPage() {
     </div>
   );
 }
+
 

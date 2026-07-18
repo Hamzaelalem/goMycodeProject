@@ -15,6 +15,10 @@ import {
   validateGeneratedRecommendationJson,
 } from "@/lib/recommendations/schema";
 import type { Recommendation } from "@/types";
+import { recommendations as mockRecommendations } from "@/mock-data/recommendations";
+import { seededSignals as mockSignals } from "@/mock-data/signals";
+import { riskScores as mockRiskScores } from "@/mock-data/riskScores";
+import { esgInputs as mockEsgInputs } from "@/mock-data/esgInputs";
 
 export class MalformedLlmOutputError extends Error {
   constructor(message: string) {

@@ -1,58 +1,35 @@
-"use client";
-
-import { useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-
+import { Brain, Gauge, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SeverityBar } from "@/components/ui/severity-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useGlobalStore } from "@/lib/store/useGlobalStore";
-import { useFilteredSignals } from "@/lib/hooks/useCrossModuleFilter";
-import { useNavigateFromSignal } from "@/lib/hooks/useSignalNavigation";
 import { TimeAgo } from "@/components/ui/time-ago";
+import { useLiveFeedViewModel } from "./useLiveFeedViewModel";
+
 export default function LiveFeedPage() {
-  const parentRef = useRef<HTMLDivElement | null>(null);
-  const navigateFromSignal = useNavigateFromSignal();
-  const signals = useGlobalStore((s) => s.signals);
-  const selectedSignal = useGlobalStore((s) => s.selectedSignal);
-  const linked = useFilteredSignals(signals);
-  const [type, setType] = useState("all");
-  const [severity, setSeverity] = useState("all");
-  const [region, setRegion] = useState("all");
-  const [sector, setSector] = useState("all");
-
-  const filtered = useMemo(
-    () =>
-      linked.filter((s) => {
-        if (type !== "all" && s.type !== type) return false;
-        if (severity !== "all" && s.severity !== severity) return false;
-        if (region !== "all" && s.region !== region) return false;
-        if (sector !== "all" && s.sector !== sector) return false;
-        return true;
-      }),
-    [linked, region, sector, severity, type],
-  );
-
-  const rows = useMemo(() => filtered, [filtered]);
-  const bySource = useMemo(
-    () => ({
-      bloomberg: filtered.filter((s) => s.source === "bloomberg").length,
-      talkwalker: filtered.filter((s) => s.source === "talkwalker").length,
-      internal: filtered.filter((s) => s.source === "internal").length,
-    }),
-    [filtered],
-  );
-  const regions = useMemo(() => Array.from(new Set(signals.map((s) => s.region))), [signals]);
-  const sectors = useMemo(() => Array.from(new Set(signals.map((s) => s.sector))), [signals]);
-
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 112,
-    overscan: 8,
-  });
+  const {
+    parentRef,
+    selectedSignal,
+    rows,
+    bySource,
+    regions,
+    sectors,
+    type,
+    setType,
+    severity,
+    setSeverity,
+    region,
+    setRegion,
+    sector,
+    setSector,
+    resetFilters,
+    navigateFromSignal,
+    virtualizer,
+    handleSelect,
+    handleAIAssessment,
+    handleStressTest,
+  } = useLiveFeedViewModel();
 
   return (
     <Card>
@@ -61,7 +38,7 @@ export default function LiveFeedPage() {
       </CardHeader>
       <CardContent>
         <div className="mb-3 grid gap-2 md:grid-cols-4">
-          <Card><CardContent className="p-2 text-sm">Signals {filtered.length}</CardContent></Card>
+          <Card><CardContent className="p-2 text-sm">Signals {rows.length}</CardContent></Card>
           <Card><CardContent className="p-2 text-sm">Bloomberg {bySource.bloomberg}</CardContent></Card>
           <Card><CardContent className="p-2 text-sm">Talkwalker {bySource.talkwalker}</CardContent></Card>
           <Card><CardContent className="p-2 text-sm">Internal {bySource.internal}</CardContent></Card>
@@ -95,7 +72,7 @@ export default function LiveFeedPage() {
               {sectors.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => { setType("all"); setSeverity("all"); setRegion("all"); setSector("all"); }}>
+          <Button variant="outline" onClick={resetFilters}>
             Reset
           </Button>
         </div>
@@ -125,14 +102,18 @@ export default function LiveFeedPage() {
                         ? "w-full rounded-xl border-2 border-ring bg-card p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         : "w-full rounded-xl border border-border bg-card p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     }
-                    onClick={() => navigateFromSignal(s)}
+                    onClick={() => handleSelect(s)}
                   >
                     <SeverityBar severity={s.severity}>
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium">{s.title}</p>
                         <TimeAgo iso={s.timestamp} className="text-[10px] text-muted-foreground" />
                       </div>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.body}</p>
+                      {selectedSignal?.id === s.id ? (
+                        <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{s.body}</p>
+                      ) : (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.body}</p>
+                      )}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <StatusBadge kind="signalType" value={s.type} />
                         <StatusBadge kind="severity" value={s.severity} />
@@ -140,6 +121,42 @@ export default function LiveFeedPage() {
                           {s.country} · {s.sector} · {s.source}
                         </span>
                       </div>
+                      {selectedSignal?.id === s.id && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                          <Button
+                            size="xs"
+                            className="text-[11px] h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAIAssessment(s);
+                            }}
+                          >
+                            <Brain className="mr-1 h-3.5 w-3.5" /> AI Assess
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="text-[11px] h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStressTest(s);
+                            }}
+                          >
+                            <Gauge className="mr-1 h-3.5 w-3.5" /> Stress Test
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="secondary"
+                            className="text-[11px] h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateFromSignal(s);
+                            }}
+                          >
+                            <ArrowUpRight className="mr-1 h-3.5 w-3.5" /> Investigate
+                          </Button>
+                        </div>
+                      )}
                     </SeverityBar>
                   </button>
                 </div>
@@ -151,4 +168,5 @@ export default function LiveFeedPage() {
     </Card>
   );
 }
+
 

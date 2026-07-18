@@ -3,13 +3,14 @@
 import { create } from "zustand";
 
 import { DATA_DOMAINS, type DataDomain } from "@/lib/dataSource";
-import { updateRecommendationStatusApi } from "@/lib/api/mutations";
-import type { EsgSectorInputs, Recommendation, RiskFactorScore, Signal, WorkflowLogEntry } from "@/types";
+import { updateRecommendationStatusApi, saveScenarioBundleApi } from "@/lib/api/mutations";
+import type { EsgSectorInputs, Recommendation, RiskFactorScore, Signal, WorkflowLogEntry, ScenarioInputs, ScenarioCard, IrrProjectionPoint } from "@/types";
 import { recommendations as mockRecommendations } from "@/mock-data/recommendations";
 import { seededSignals as mockSignals } from "@/mock-data/signals";
 import { riskScores as mockRiskScores } from "@/mock-data/riskScores";
 import { esgInputs as mockEsgInputs } from "@/mock-data/esgInputs";
 import { workflowLog as mockWorkflowLog } from "@/mock-data/workflowLog";
+import { DEFAULT_INPUTS } from "@/mock-data/scenarios.v2";
 
 const initialSources: Record<DataDomain, boolean> = {
   recommendations: false,
@@ -45,6 +46,16 @@ interface GlobalStore {
   isAIDrawerOpen: boolean;
   isRecommendationDrawerOpen: boolean;
   aiDrawerContext: string;
+  aiDrawerInitialMessage: string | null;
+  aiModel: "ollama" | "gemini";
+  aiPersona: "standard" | "risk" | "esg" | "conservative";
+  scenarioInputs: ScenarioInputs;
+  savedScenarios: Array<{
+    key: string;
+    defaultInputs: ScenarioInputs;
+    scenarioCards: ScenarioCard[];
+    irrProjection: IrrProjectionPoint[];
+  }>;
 
   setSelectedRecommendation: (
     r: Recommendation | null,
@@ -55,10 +66,23 @@ interface GlobalStore {
   setActiveRegionFilter: (region: string | null) => void;
   setActiveRiskFactor: (riskFactor: string | null) => void;
   setWorkflowFocusRecommendationId: (id: string | null) => void;
+  addRecommendation: (r: Recommendation) => void;
   addSignal: (s: Signal) => void;
   markSignalsRead: () => void;
   openAIDrawer: (context: string) => void;
   closeAIDrawer: () => void;
+  setAiDrawerInitialMessage: (msg: string | null) => void;
+  setScenarioInputs: (inputs: ScenarioInputs) => void;
+  resetScenarioInputs: () => void;
+  setAiModel: (model: "ollama" | "gemini") => void;
+  setAiPersona: (persona: "standard" | "risk" | "esg" | "conservative") => void;
+  saveScenarioAction: (
+    name: string,
+    inputs: ScenarioInputs,
+    cards: ScenarioCard[],
+    projection: IrrProjectionPoint[],
+  ) => Promise<boolean>;
+  loadSavedScenariosAction: () => Promise<void>;
   openRecommendationDrawer: (r: Recommendation) => void;
   closeRecommendationDrawer: () => void;
   updateRecommendationStatus: (id: string, status: Recommendation["status"], comment?: string) => void;
@@ -99,6 +123,11 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   isAIDrawerOpen: false,
   isRecommendationDrawerOpen: false,
   aiDrawerContext: "",
+  aiDrawerInitialMessage: null,
+  aiModel: "gemini",
+  aiPersona: "standard",
+  scenarioInputs: DEFAULT_INPUTS,
+  savedScenarios: [],
 
   setSelectedRecommendation: (r, options) => {
     const openDrawer = options?.openDrawer !== false;
@@ -119,6 +148,10 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   setActiveRegionFilter: (region) => set({ activeRegionFilter: region }),
   setActiveRiskFactor: (riskFactor) => set({ activeRiskFactor: riskFactor }),
   setWorkflowFocusRecommendationId: (id) => set({ workflowFocusRecommendationId: id }),
+  addRecommendation: (r) =>
+    set((state) => ({
+      recommendations: [r, ...state.recommendations],
+    })),
   addSignal: (s) =>
     set((state) => ({
       signals: [s, ...state.signals].slice(0, 500),
@@ -127,6 +160,43 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   markSignalsRead: () => set({ unreadSignalCount: 0 }),
   openAIDrawer: (context) => set({ isAIDrawerOpen: true, aiDrawerContext: context }),
   closeAIDrawer: () => set({ isAIDrawerOpen: false }),
+  setAiDrawerInitialMessage: (msg) => set({ aiDrawerInitialMessage: msg }),
+  setScenarioInputs: (inputs) => set({ scenarioInputs: inputs }),
+  resetScenarioInputs: () => set({ scenarioInputs: DEFAULT_INPUTS }),
+  setAiModel: (model) => set({ aiModel: model }),
+  setAiPersona: (persona) => set({ aiPersona: persona }),
+  saveScenarioAction: async (name, inputs, cards, projection) => {
+    const matchIndex = get().savedScenarios.findIndex((s) => s.key === name);
+    const item = { key: name, defaultInputs: inputs, scenarioCards: cards, irrProjection: projection };
+    
+    let nextSaved = [...get().savedScenarios];
+    if (matchIndex >= 0) {
+      nextSaved[matchIndex] = item;
+    } else {
+      nextSaved = [item, ...nextSaved];
+    }
+    set({ savedScenarios: nextSaved });
+
+    const result = await saveScenarioBundleApi({
+      key: name,
+      defaultInputs: inputs,
+      scenarioCards: cards,
+      irrProjection: projection,
+    });
+    return result.success;
+  },
+  loadSavedScenariosAction: async () => {
+    try {
+      const res = await fetch("/api/scenarios?all=true");
+      if (!res.ok) throw new Error("failed");
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        set({ savedScenarios: list });
+      }
+    } catch {
+      console.warn("[useGlobalStore] Load saved scenarios failed; using client-side fallback store");
+    }
+  },
   openRecommendationDrawer: (r) => get().setSelectedRecommendation(r),
   closeRecommendationDrawer: () => set({ isRecommendationDrawerOpen: false }),
 
@@ -245,6 +315,7 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
       const scRes = await fetch("/api/scenarios");
       if (!scRes.ok) throw new Error("scenarios");
       mark("scenarios", true);
+      await get().loadSavedScenariosAction();
     } catch {
       mark("scenarios", false);
     }

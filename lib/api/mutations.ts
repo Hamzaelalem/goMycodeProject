@@ -46,6 +46,7 @@ export async function updateEsgSectorApi(
 }
 
 export async function saveScenarioBundleApi(body: {
+  key?: string;
   defaultInputs: unknown;
   scenarioCards: unknown;
   irrProjection: unknown;
