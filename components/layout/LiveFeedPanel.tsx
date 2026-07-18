@@ -17,7 +17,6 @@ export function LiveFeedPanel() {
     handleAIAssessment,
     handleStressTest,
   } = useLiveFeedPanelViewModel();
-
   return (
     <aside className="hidden h-full w-[300px] shrink-0 border-l border-border bg-background lg:block">
       <div className="h-14 border-b border-border px-4 py-3">
