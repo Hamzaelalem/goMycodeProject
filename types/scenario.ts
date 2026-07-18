@@ -2,7 +2,7 @@ export type ScenarioId = "base" | "bull" | "bear" | "stress";
 
 export interface ScenarioInputs {
   oilPrice: number; // $/bbl
-  fxDeltaPct: number; // -20..20
+  usdLocalRate: number; // FX index, 100 = equilibrium, >100 = USD stronger
   interestRate: number; // %
   inflationRate: number; // %
 }

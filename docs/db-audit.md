@@ -104,7 +104,7 @@ mock-data/workflowLog.ts
 
 ### Scenario types (`types/scenario.ts`)
 
-- `ScenarioInputs`: `oilPrice`, `fxDeltaPct`, `interestRate`, `inflationRate`
+- `ScenarioInputs`: `oilPrice`, `usdLocalRate`, `interestRate`, `inflationRate`
 - `ScenarioCard`: `id`, `label`, `probabilityPct`, `portfolioIrrPct`, `projectedAumB`, `riskScore`
 - `IrrProjectionPoint`: `year`, `base`, `bull`, `bear`, `stress`
 

@@ -70,13 +70,22 @@ Click "Generate" → handleGenerateRecommendation()
 
 **Purpose:** Macro "what-if" sandbox — sliders drive scenario cards + a 10-year IRR projection; save/compare named sandboxes.
 
-- **View:** `ScenariosPage.tsx` → 4 slider controls with numeric entry + min/max labels (oilPrice, fxDeltaPct, interestRate, inflationRate) + Reset, an Expected-IRR (probability-weighted) header chip, save-name input + Save, scoped saved-scenario list ("This deal"/"Global" badges) with compare checkboxes + Load, `ScenarioComparisonChart` (with E[IRR] reference line), `IRRProjectionChart` (with compared overlays), `ScenarioTornadoChart` (sensitivity), `ScenarioMonteCarloChart` (P10–P90 band), an AI scenario-explanation card (Explain button), `ScenarioCard` grid.
+- **View:** `ScenariosPage.tsx` → 4 slider controls with numeric entry + min/max labels (oilPrice, usdLocalRate, interestRate, inflationRate) + Reset, an Expected-IRR (probability-weighted) header chip, save-name input + Save, scoped saved-scenario list ("This deal"/"Global" badges) with compare checkboxes + Load, `ScenarioComparisonChart` (with E[IRR] reference line), `IRRProjectionChart` (with compared overlays), `ScenarioTornadoChart` (sensitivity), `ScenarioMonteCarloChart` (P10–P90 band), an AI scenario-explanation card (Explain button), `ScenarioCard` grid.
 - **View-model:** `useScenariosViewModel` — inputs live in store (`scenarioInputs`); `useDebounce(inputs,150)` feeds `computeScenarioCards` / `computeIrrProjection` / `expectedIrr` / `computeSensitivity` / `computeMonteCarloBands` (from `lib/scenarios/compute`). The scenario anchor is seeded from the selected recommendation via `baseFromRecommendation`. Saved sandboxes are scoped by recommendation (key `"<recId>::<name>"`) and filtered to global + current-deal; `handleExplain` → `explainScenarioApi`. On mount loads saved scenarios; `handleSaveCurrent` → `saveScenarioAction`; `resetInputs` → store `resetScenarioInputs`.
 - **APIs:** `GET /api/scenarios` (default + `?all=true`), `POST /api/scenarios` (upsert). **Model:** `ScenarioSnapshot` (Json columns).
 
 **Save flow:** adjust sliders (store update, debounced recompute) → name + Save → `saveScenarioAction` optimistically adds to `savedScenarios` then `POST /api/scenarios` upsert by `key`.
 
 **Stress-test entry point:** from a signal (`handleStressTest`) → `getMacroInputsForSignal` computes macro inputs → `setScenarioInputs` → `router.push('/scenarios')` → sliders pre-set.
+
+## 5b. Market Intelligence (`/market-intelligence`)
+
+**Purpose:** Portfolio Impact Simulator — executives set macro assumptions (oil, USD/local FX delta, interest, inflation) and see the impact on the whole portfolio, computed by the **server-side backend** (`POST /api/scenarios/compute`).
+
+- **View:** `MarketIntelligencePage.tsx` → "Macro assumptions" card (4 `SliderControl`s + Reset), "Portfolio impact" card (4 `ImpactStat` tiles — base-case IRR, expected IRR, projected AUM, composite risk, each showing the delta vs the default-assumptions baseline — plus `ScenarioComparisonChart`), `ScenarioCard` grid, and a "Portfolio holdings" table (from `mockPortfolio`). A badge shows `computed by backend` vs `instant preview…`.
+- **View-model:** `useMarketIntelligenceViewModel` — local `inputs` state (not the scenario store), `useDebounce(inputs,150)` → `computeScenariosApi` (server, source of truth) with `computeScenarioBundle` client fallback keyed by inputs; `baseFromPortfolio(mockPortfolio)` anchor; `baseline` = default-assumptions bundle for the impact deltas.
+- **APIs:** `POST /api/scenarios/compute`. Shares the domain math in `lib/scenarios/compute.ts` with the Scenarios page; the reusable slider lives at `components/ui/slider-control.tsx`.
+
 
 ---
 

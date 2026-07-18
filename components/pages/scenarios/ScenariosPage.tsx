@@ -5,60 +5,10 @@ import { ScenarioComparisonChart } from "@/components/charts/ScenarioComparisonC
 import { IRRProjectionChart } from "@/components/charts/IRRProjectionChart";
 import { ScenarioTornadoChart } from "@/components/charts/ScenarioTornadoChart";
 import { ScenarioMonteCarloChart } from "@/components/charts/ScenarioMonteCarloChart";
-import { Slider } from "@/components/ui/slider";
+import { SliderControl } from "@/components/ui/slider-control";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useScenariosViewModel } from "./useScenariosViewModel";
-
-function SliderControl({
-  label,
-  unit,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  unit: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-}) {
-  const clamp = (n: number) => Math.min(max, Math.max(min, step < 1 ? Number(n.toFixed(1)) : Math.round(n)));
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs">{label}</p>
-        <input
-          type="number"
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (Number.isFinite(n)) onChange(clamp(n));
-          }}
-          className="h-6 w-16 rounded-md border border-input bg-transparent px-1.5 text-right text-xs tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
-      </div>
-      <Slider
-        value={[value]}
-        min={min}
-        max={max}
-        step={step}
-        onValueChange={(v) => onChange(clamp((Array.isArray(v) ? v[0] : v) as number))}
-      />
-      <div className="flex justify-between text-[10px] text-muted-foreground">
-        <span>{min}{unit}</span>
-        <span>{max}{unit}</span>
-      </div>
-    </div>
-  );
-}
 
 export default function ScenariosPage() {
   const {
@@ -116,7 +66,7 @@ export default function ScenariosPage() {
             <CardHeader><CardTitle>Scenario controls</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <SliderControl label="Oil price ($/bbl)" unit="" value={inputs.oilPrice} min={50} max={130} step={1} onChange={(v) => setValue("oilPrice", v)} />
-              <SliderControl label="FX delta (%)" unit="%" value={inputs.fxDeltaPct} min={-20} max={20} step={1} onChange={(v) => setValue("fxDeltaPct", v)} />
+              <SliderControl label="USD/local FX rate" unit="" value={inputs.usdLocalRate} min={80} max={120} step={1} onChange={(v) => setValue("usdLocalRate", v)} />
               <SliderControl label="Interest (%)" unit="%" value={inputs.interestRate} min={2} max={15} step={0.1} onChange={(v) => setValue("interestRate", v)} />
               <SliderControl label="Inflation (%)" unit="%" value={inputs.inflationRate} min={1} max={20} step={0.1} onChange={(v) => setValue("inflationRate", v)} />
               <div className="flex justify-end pt-1">
@@ -163,7 +113,7 @@ export default function ScenariosPage() {
                               </span>
                             </p>
                             <p className="text-[10px] text-muted-foreground">
-                              Oil: ${s.defaultInputs.oilPrice} · FX: {s.defaultInputs.fxDeltaPct}% · IR: {s.defaultInputs.interestRate}% · Inf: {s.defaultInputs.inflationRate}%
+                              Oil: ${s.defaultInputs.oilPrice} · FX: {s.defaultInputs.usdLocalRate} · IR: {s.defaultInputs.interestRate}% · Inf: {s.defaultInputs.inflationRate}%
                             </p>
                           </div>
                           <div className="flex items-center gap-2">

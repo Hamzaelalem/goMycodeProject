@@ -16,13 +16,15 @@ function parseInputs(raw: unknown): ScenarioInputs | null {
   const o = raw as Record<string, unknown>;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const oilPrice = num(o.oilPrice);
-  const fxDeltaPct = num(o.fxDeltaPct);
+  const rawRate = num(o.usdLocalRate);
+  const legacyFx = num(o.fxDeltaPct);
+  const usdLocalRate = rawRate ?? (legacyFx !== null ? legacyFx + 100 : null);
   const interestRate = num(o.interestRate);
   const inflationRate = num(o.inflationRate);
-  if (oilPrice === null || fxDeltaPct === null || interestRate === null || inflationRate === null) {
+  if (oilPrice === null || usdLocalRate === null || interestRate === null || inflationRate === null) {
     return null;
   }
-  return { oilPrice, fxDeltaPct, interestRate, inflationRate };
+  return { oilPrice, usdLocalRate, interestRate, inflationRate };
 }
 
 export async function POST(req: NextRequest) {

@@ -44,7 +44,7 @@ function buildPrompt(body: ExplainBody): string {
 
   if (inputs) {
     parts.push(
-      `Macro inputs: oil $${inputs.oilPrice}/bbl, FX delta ${inputs.fxDeltaPct}%, ` +
+      `Macro inputs: oil $${inputs.oilPrice}/bbl, USD/local FX rate ${inputs.usdLocalRate} (100=parity), ` +
         `interest ${inputs.interestRate}%, inflation ${inputs.inflationRate}%.`,
     );
   }

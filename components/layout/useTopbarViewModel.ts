@@ -6,6 +6,7 @@ import { useGlobalStore } from "@/lib/store/useGlobalStore";
 const TITLES: Record<string, string> = {
   "/dashboard": "Portfolio overview",
   "/recommendations": "Recommendation engine",
+  "/market-intelligence": "Market intelligence",
   "/scenarios": "Scenario modelling",
   "/risk": "Risk scoring",
   "/esg": "ESG scoring",
@@ -20,6 +21,8 @@ function contextForPath(pathname: string): string {
   if (pathname.startsWith("/esg")) return "How can we improve our portfolio ESG score?";
   if (pathname.startsWith("/scenarios"))
     return "Explain the difference between bear and stress scenarios";
+  if (pathname.startsWith("/market-intelligence"))
+    return "How do current macro assumptions affect the portfolio?";
   if (pathname.startsWith("/workflow"))
     return "What should I consider before approving this recommendation?";
   if (pathname.startsWith("/dashboard")) return "Give me a summary of the portfolio status today";

@@ -10,7 +10,7 @@ import type {
 
 export const DEFAULT_INPUTS: ScenarioInputs = {
   oilPrice: 97,
-  fxDeltaPct: -5,
+  usdLocalRate: 95,
   interestRate: 6,
   inflationRate: 8,
 };
@@ -68,9 +68,9 @@ export function deltaFromOil(price: number): number {
   return (price - 97) * 0.015;
 }
 
-export function deltaFromFX(pct: number): number {
-  // USD strength hurts EM; negative delta is supportive
-  return -pct * 0.08;
+export function deltaFromFX(rate: number): number {
+  // USD/local FX index: >100 = stronger USD hurts EM; <100 = weaker USD supportive
+  return -(rate - 100) * 0.08;
 }
 
 export function deltaFromIR(rate: number): number {
@@ -90,7 +90,7 @@ export function computeScenarioCards(
 
   const macroDelta =
     deltaFromOil(inputs.oilPrice) +
-    deltaFromFX(inputs.fxDeltaPct) +
+    deltaFromFX(inputs.usdLocalRate) +
     deltaFromIR(inputs.interestRate) +
     deltaFromInflation(inputs.inflationRate);
 
@@ -158,7 +158,7 @@ export interface SensitivityBar {
 /** ± perturbation applied to each input for one-at-a-time sensitivity. */
 const SENSITIVITY_RANGES: Record<keyof ScenarioInputs, { label: string; delta: number }> = {
   oilPrice: { label: "Oil price ±$20", delta: 20 },
-  fxDeltaPct: { label: "FX delta ±10pp", delta: 10 },
+  usdLocalRate: { label: "USD/local FX ±10", delta: 10 },
   interestRate: { label: "Interest ±3pp", delta: 3 },
   inflationRate: { label: "Inflation ±4pp", delta: 4 },
 };
@@ -192,7 +192,7 @@ export interface McBandPoint {
 /** Standard deviation of each macro input for the Monte Carlo draw. */
 const MC_STD: Record<keyof ScenarioInputs, number> = {
   oilPrice: 12,
-  fxDeltaPct: 6,
+  usdLocalRate: 6,
   interestRate: 1.5,
   inflationRate: 2.5,
 };
@@ -240,7 +240,7 @@ export function computeMonteCarloBands(
   for (let d = 0; d < draws; d++) {
     const sampled: ScenarioInputs = {
       oilPrice: inputs.oilPrice + gaussian(rng) * MC_STD.oilPrice,
-      fxDeltaPct: inputs.fxDeltaPct + gaussian(rng) * MC_STD.fxDeltaPct,
+      usdLocalRate: inputs.usdLocalRate + gaussian(rng) * MC_STD.usdLocalRate,
       interestRate: inputs.interestRate + gaussian(rng) * MC_STD.interestRate,
       inflationRate: inputs.inflationRate + gaussian(rng) * MC_STD.inflationRate,
     };

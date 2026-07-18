@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, GitBranch, LayoutDashboard, Leaf, LineChart, Radio, Shield, Sparkles } from "lucide-react";
+import { Activity, GitBranch, LayoutDashboard, Leaf, LineChart, Radio, Shield, Sparkles, TrendingUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/recommendations", label: "Recommendations", icon: Sparkles },
+  { href: "/market-intelligence", label: "Market Intelligence", icon: TrendingUp },
   { href: "/scenarios", label: "Scenarios", icon: LineChart },
   { href: "/risk", label: "Risk", icon: Shield },
   { href: "/esg", label: "ESG", icon: Leaf },

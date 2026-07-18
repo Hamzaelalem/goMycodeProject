@@ -112,7 +112,7 @@ Legend: **params** = query string; **body** = JSON. Success/error status codes n
 
 ### `POST /api/scenarios/compute`
 - **Runtime:** `nodejs`. The Scenario Modelling Engine's server-side computation backend.
-- **Body:** `{ inputs: {oilPrice,fxDeltaPct,interestRate,inflationRate}, recommendationId? }`. Invalid/missing numeric inputs → `400`.
+- **Body:** `{ inputs: {oilPrice,usdLocalRate,interestRate,inflationRate}, recommendationId? }`. Also accepts legacy `fxDeltaPct` (auto-converted to `usdLocalRate` as `fxDeltaPct + 100`). Invalid/missing numeric inputs → `400`.
 - **Logic:** base anchor = `baseFromPortfolio(mockPortfolio)`; if `recommendationId` resolves, `baseFromRecommendation(rec, portfolioBase)` overrides IRR/risk. Returns `computeScenarioBundle(inputs, base)`.
 - **Response:** `200 { base, cards, projection, expectedIrr, sensitivity, monteCarlo }` · `400 { error }`.
 - **Consumers:** `computeScenariosApi` ← `useScenariosViewModel` (source of truth; client `computeScenarioBundle` is the instant fallback).
