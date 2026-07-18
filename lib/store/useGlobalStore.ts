@@ -155,7 +155,8 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   addSignal: (s) =>
     set((state) => ({
       signals: [s, ...state.signals].slice(0, 500),
-      unreadSignalCount: state.unreadSignalCount + 1,
+      // Keep "unread" semantics consistent with init/bootstrap: count critical signals only.
+      unreadSignalCount: state.unreadSignalCount + (s.severity === "critical" ? 1 : 0),
     })),
   markSignalsRead: () => set({ unreadSignalCount: 0 }),
   openAIDrawer: (context) => set({ isAIDrawerOpen: true, aiDrawerContext: context }),

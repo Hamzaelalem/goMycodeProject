@@ -63,6 +63,8 @@ function parseSignalCreateBody(input: unknown): Prisma.SignalCreateInput | null 
   const timestamp = Number.isFinite(ts.getTime()) ? ts : new Date();
   const riskFactor = typeof o.riskFactor === "string" ? o.riskFactor : null;
   const workflowItemId = typeof o.workflowItemId === "string" ? o.workflowItemId : null;
+  const url = typeof o.url === "string" ? o.url : null;
+  const publisher = typeof o.publisher === "string" ? o.publisher : null;
   return {
     id,
     title,
@@ -78,6 +80,8 @@ function parseSignalCreateBody(input: unknown): Prisma.SignalCreateInput | null 
     sector,
     riskFactor,
     workflowItemId,
+    url,
+    publisher,
   };
 }
 

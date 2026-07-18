@@ -17,4 +17,8 @@ export interface Signal {
   sector: string;
   riskFactor?: string;
   workflowItemId?: string;
+  /** Source article URL (set by news ingestion). */
+  url?: string;
+  /** Publisher / outlet name (set by news ingestion). */
+  publisher?: string;
 }

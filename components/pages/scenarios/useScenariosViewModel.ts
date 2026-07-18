@@ -3,12 +3,32 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { useDebounce } from "@/lib/hooks/useDebounce";
-import { computeIrrProjection, computeScenarioCards } from "@/mock-data/scenarios.v2";
+import { explainScenarioApi } from "@/lib/api/mutations";
+import type { IrrProjectionPoint } from "@/types";
+import {
+  baseFromRecommendation,
+  computeIrrProjection,
+  computeMonteCarloBands,
+  computeScenarioCards,
+  computeSensitivity,
+  expectedIrr,
+} from "@/lib/scenarios/compute";
+
+type ComparedProjectionPoint = IrrProjectionPoint & Record<string, number>;
+
+const SCOPE_SEP = "::";
+
+function parseScenarioKey(key: string): { recId: string | null; name: string } {
+  const idx = key.indexOf(SCOPE_SEP);
+  if (idx === -1) return { recId: null, name: key };
+  return { recId: key.slice(0, idx), name: key.slice(idx + SCOPE_SEP.length) };
+}
 
 export function useScenariosViewModel() {
   const selected = useGlobalStore((s) => s.selectedRecommendation);
   const inputs = useGlobalStore((s) => s.scenarioInputs);
   const setScenarioInputs = useGlobalStore((s) => s.setScenarioInputs);
+  const resetScenarioInputs = useGlobalStore((s) => s.resetScenarioInputs);
   const savedScenarios = useGlobalStore((s) => s.savedScenarios);
   const saveScenarioAction = useGlobalStore((s) => s.saveScenarioAction);
   const loadSavedScenariosAction = useGlobalStore((s) => s.loadSavedScenariosAction);
@@ -19,18 +39,52 @@ export function useScenariosViewModel() {
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [narrative, setNarrative] = useState<string | null>(null);
+  const [narrativeModel, setNarrativeModel] = useState<string | null>(null);
+  const [explaining, setExplaining] = useState(false);
 
   useEffect(() => {
     void loadSavedScenariosAction();
   }, [loadSavedScenariosAction]);
 
-  const cards = useMemo(() => computeScenarioCards(debounced), [debounced]);
+  const base = useMemo(() => baseFromRecommendation(selected), [selected]);
+  const cards = useMemo(() => computeScenarioCards(debounced, base), [debounced, base]);
   const baseProjection = useMemo(() => computeIrrProjection(cards), [cards]);
+  const expectedIrrPct = useMemo(() => expectedIrr(cards), [cards]);
+  const sensitivity = useMemo(() => computeSensitivity(debounced, base), [debounced, base]);
+  const monteCarloBands = useMemo(() => computeMonteCarloBands(debounced, base), [debounced, base]);
 
-  const projection = useMemo(() => {
+  // Saved sandboxes are scoped: global ones (no scope prefix) plus those tagged to the
+  // recommendation currently in context. Keys are stored as `${recId}::${name}`.
+  const visibleSavedScenarios = useMemo(() => {
+    return savedScenarios
+      .map((s) => {
+        const { recId, name } = parseScenarioKey(s.key);
+        return { ...s, displayName: name, scoped: recId !== null, recId };
+      })
+      .filter((s) => s.recId === null || s.recId === selected?.id);
+  }, [savedScenarios, selected?.id]);
+
+  const visibleKeys = useMemo(
+    () => new Set(visibleSavedScenarios.map((s) => s.key)),
+    [visibleSavedScenarios],
+  );
+  const activeComparedKeys = useMemo(
+    () => comparedKeys.filter((k) => visibleKeys.has(k)),
+    [comparedKeys, visibleKeys],
+  );
+  const comparedLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        activeComparedKeys.map((k) => [k, parseScenarioKey(k).name]),
+      ) as Record<string, string>,
+    [activeComparedKeys],
+  );
+
+  const projection = useMemo<ComparedProjectionPoint[]>(() => {
     return baseProjection.map((p) => {
-      const pt = { ...p } as any;
-      comparedKeys.forEach((key) => {
+      const pt: ComparedProjectionPoint = { ...p };
+      activeComparedKeys.forEach((key) => {
         const match = savedScenarios.find((x) => x.key === key);
         if (match) {
           const basePoint = match.irrProjection.find((bp) => bp.year === p.year);
@@ -41,7 +95,7 @@ export function useScenariosViewModel() {
       });
       return pt;
     });
-  }, [baseProjection, comparedKeys, savedScenarios]);
+  }, [baseProjection, activeComparedKeys, savedScenarios]);
 
   function setValue<K extends keyof typeof inputs>(k: K, value: number) {
     setScenarioInputs({ ...inputs, [k]: value });
@@ -57,13 +111,18 @@ export function useScenariosViewModel() {
     setScenarioInputs(presets);
   }
 
+  function resetInputs() {
+    resetScenarioInputs();
+  }
+
   async function handleSaveCurrent() {
     const trimmed = saveName.trim();
     if (!trimmed) return;
+    const key = selected ? `${selected.id}${SCOPE_SEP}${trimmed}` : trimmed;
     setSaving(true);
     setSaveError(null);
     try {
-      const ok = await saveScenarioAction(trimmed, inputs, cards, baseProjection);
+      const ok = await saveScenarioAction(key, inputs, cards, baseProjection);
       if (ok) {
         setSaveName("");
       } else {
@@ -76,6 +135,36 @@ export function useScenariosViewModel() {
     }
   }
 
+  async function handleExplain() {
+    setExplaining(true);
+    try {
+      const result = await explainScenarioApi({
+        inputs,
+        cards,
+        expectedIrr: expectedIrrPct,
+        sensitivity,
+        recommendation: selected
+          ? {
+              title: selected.title,
+              region: selected.region,
+              sector: selected.sector,
+              irrPct: selected.irrPct,
+              riskLevel: selected.riskLevel,
+            }
+          : null,
+      });
+      if (result) {
+        setNarrative(result.narrative);
+        setNarrativeModel(result.model);
+      } else {
+        setNarrative("Could not generate an explanation right now. Please try again.");
+        setNarrativeModel(null);
+      }
+    } finally {
+      setExplaining(false);
+    }
+  }
+
   const selectedRecommendationTitle = selected?.title ?? "None selected";
 
   return {
@@ -84,16 +173,25 @@ export function useScenariosViewModel() {
     active,
     cards,
     projection,
+    expectedIrrPct,
+    sensitivity,
+    monteCarloBands,
     setValue,
     setActive,
-    savedScenarios,
-    comparedKeys,
+    savedScenarios: visibleSavedScenarios,
+    comparedKeys: activeComparedKeys,
+    comparedLabels,
     toggleCompare,
     applyPreset,
+    resetInputs,
     saveName,
     setSaveName,
     saving,
     saveError,
     handleSaveCurrent,
+    narrative,
+    narrativeModel,
+    explaining,
+    handleExplain,
   };
 }

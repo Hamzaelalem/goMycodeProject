@@ -63,6 +63,8 @@ model Signal {
   sector           String
   riskFactor       String?
   workflowItemId   String?
+  url              String?
+  publisher        String?
 
   @@index([timestamp])
   @@map("signals")

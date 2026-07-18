@@ -17,5 +17,7 @@ export function mapSignalFromDb(row: SignalRow): Signal {
     sector: row.sector,
     riskFactor: row.riskFactor ?? undefined,
     workflowItemId: row.workflowItemId ?? undefined,
+    url: row.url ?? undefined,
+    publisher: row.publisher ?? undefined,
   };
 }

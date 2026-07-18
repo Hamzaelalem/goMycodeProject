@@ -1,5 +1,6 @@
 import type { EsgSectorInputs, Recommendation } from "@/types";
 import type { GenerateRecommendationRequest } from "@/lib/recommendations/schema";
+import type { IngestMode, IngestSummary } from "@/lib/ingest/types";
 
 export type UpdateRecommendationStatusPayload = {
   status: Recommendation["status"];
@@ -64,6 +65,26 @@ export async function saveScenarioBundleApi(body: {
   }
 }
 
+export async function explainScenarioApi(body: {
+  inputs: unknown;
+  cards: unknown;
+  expectedIrr: number;
+  sensitivity: unknown;
+  recommendation?: unknown;
+}): Promise<{ narrative: string; model: string } | null> {
+  try {
+    const res = await fetch("/api/scenarios/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { narrative: string; model: string };
+  } catch {
+    return null;
+  }
+}
+
 export async function generateRecommendationApi(
   payload: GenerateRecommendationRequest,
 ): Promise<{ success: boolean; data?: Recommendation; error?: string }> {
@@ -85,6 +106,58 @@ export async function generateRecommendationApi(
       };
     }
     return { success: true, data: json.recommendation };
+  } catch {
+    return { success: false, error: "Network error" };
+  }
+}
+
+export async function ingestNewsApi(): Promise<{
+  success: boolean;
+  data?: IngestSummary;
+  error?: string;
+}> {
+  try {
+    const res = await fetch("/api/signals/ingest", { method: "POST" });
+    const json = (await res.json().catch(() => ({}))) as IngestSummary & { error?: string };
+    if (!res.ok || !json.ok) {
+      return { success: false, error: json.error ?? `HTTP ${res.status}` };
+    }
+    return { success: true, data: json };
+  } catch {
+    return { success: false, error: "Network error" };
+  }
+}
+
+export interface IngestStatus {
+  running: boolean;
+  mode: IngestMode;
+  lastRun: IngestSummary | null;
+}
+
+export async function getIngestStatusApi(): Promise<IngestStatus | null> {
+  try {
+    const res = await fetch("/api/signals/ingest");
+    if (!res.ok) return null;
+    return (await res.json()) as IngestStatus;
+  } catch {
+    return null;
+  }
+}
+
+export async function setIngestModeApi(
+  mode: IngestMode,
+): Promise<{ success: boolean; mode?: IngestMode; error?: string }> {
+  try {
+    const res = await fetch("/api/signals/ingest", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { mode?: IngestMode; error?: string };
+    if (!res.ok || !json.mode) {
+      return { success: false, error: json.error ?? `HTTP ${res.status}` };
+    }
+    return { success: true, mode: json.mode };
   } catch {
     return { success: false, error: "Network error" };
   }

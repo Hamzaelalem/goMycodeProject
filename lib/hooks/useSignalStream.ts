@@ -67,12 +67,43 @@ export function useSignalStream(enabled = true, intervalMs = 30_000) {
   const addSignal = useGlobalStore((s) => s.addSignal);
   const counter = useRef(1000);
   const apiPollSucceeded = useRef(false);
+  const consecutiveFailures = useRef(0);
   const stableTemplates = useMemo(() => TEMPLATES, []);
 
   useEffect(() => {
     if (!enabled) return;
 
+    const addIfNew = (s: Signal) => {
+      const ids = new Set(useGlobalStore.getState().signals.map((x) => x.id));
+      if (!ids.has(s.id)) addSignal(s);
+    };
+
+    const makeSyntheticSignal = (): Signal => {
+      const tpl = randomFrom(stableTemplates);
+      const type = tpl.type;
+      return {
+        id: `stream-${counter.current++}`,
+        title: tpl.title,
+        body: tpl.body,
+        type,
+        severity: severityFor(type),
+        sentiment: randomSentiment(type),
+        reach: Math.round(Math.random() * 250_000),
+        timestamp: new Date().toISOString(),
+        source: randomFrom(SOURCES),
+        country: tpl.country,
+        region: tpl.region,
+        sector: tpl.sector,
+      };
+    };
+
+    // ── Polling fallback (used only when SSE cannot be established) ───────────
+    let pollId: number | null = null;
+
     const tick = async () => {
+      // Don't poll while the tab is hidden — saves DB round-trips and battery.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
       const snap = useGlobalStore.getState();
       const after = latestSignalTimestampIso(snap.signals);
       try {
@@ -83,40 +114,118 @@ export function useSignalStream(enabled = true, intervalMs = 30_000) {
         const rows = (await res.json()) as Signal[];
         if (!Array.isArray(rows)) throw new Error("bad shape");
         apiPollSucceeded.current = true;
+        consecutiveFailures.current = 0;
         const sorted = [...rows].sort(
           (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         );
+        // Build the dedup set once, then track ids added this batch.
+        const seen = new Set(useGlobalStore.getState().signals.map((x) => x.id));
         for (const s of sorted) {
-          const ids = new Set(useGlobalStore.getState().signals.map((x) => x.id));
-          if (!ids.has(s.id)) addSignal(s);
+          if (!seen.has(s.id)) {
+            addSignal(s);
+            seen.add(s.id);
+          }
         }
       } catch {
-        if (!apiPollSucceeded.current) {
-          const tpl = randomFrom(stableTemplates);
-          const type = tpl.type;
-          const signal: Signal = {
-            id: `stream-${counter.current++}`,
-            title: tpl.title,
-            body: tpl.body,
-            type,
-            severity: severityFor(type),
-            sentiment: randomSentiment(type),
-            reach: Math.round(Math.random() * 250_000),
-            timestamp: new Date().toISOString(),
-            source: randomFrom(SOURCES),
-            country: tpl.country,
-            region: tpl.region,
-            sector: tpl.sector,
-          };
-          addSignal(signal);
+        consecutiveFailures.current += 1;
+        // Synthesize a signal when the API has never worked (offline dev) or a
+        // sustained outage begins mid-session (2+ consecutive failures), so the
+        // feed keeps moving instead of going silent. A single transient blip on
+        // an otherwise-live feed is ignored to avoid mixing in fake data.
+        if (!apiPollSucceeded.current || consecutiveFailures.current >= 2) {
+          addSignal(makeSyntheticSignal());
         }
       }
     };
 
-    void tick();
-    const id = window.setInterval(() => {
+    const startPolling = () => {
+      if (pollId !== null) return;
       void tick();
-    }, intervalMs);
-    return () => window.clearInterval(id);
+      pollId = window.setInterval(() => {
+        void tick();
+      }, intervalMs);
+    };
+
+    const stopPolling = () => {
+      if (pollId !== null) {
+        window.clearInterval(pollId);
+        pollId = null;
+      }
+    };
+
+    // Poll immediately when returning to the tab (only relevant in poll mode).
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && pollId !== null) void tick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    // ── SSE primary transport ────────────────────────────────────────────────
+    let es: EventSource | null = null;
+    let opened = false;
+    let openTimer: number | null = null;
+
+    const startSse = () => {
+      if (typeof EventSource === "undefined") {
+        startPolling();
+        return;
+      }
+      try {
+        es = new EventSource("/api/signals/stream");
+      } catch {
+        startPolling();
+        return;
+      }
+
+      // If the connection doesn't open promptly, fall back to polling.
+      openTimer = window.setTimeout(() => {
+        if (!opened) {
+          es?.close();
+          es = null;
+          startPolling();
+        }
+      }, 4_000);
+
+      es.onopen = () => {
+        opened = true;
+        apiPollSucceeded.current = true;
+        if (openTimer !== null) {
+          window.clearTimeout(openTimer);
+          openTimer = null;
+        }
+        // SSE is authoritative — ensure we're not also polling.
+        stopPolling();
+      };
+
+      es.addEventListener("signal", (ev) => {
+        try {
+          addIfNew(JSON.parse((ev as MessageEvent).data) as Signal);
+        } catch {
+          // ignore malformed event
+        }
+      });
+
+      es.onerror = () => {
+        // EventSource auto-reconnects once opened; only fall back if it never
+        // connected (route missing / server unreachable).
+        if (!opened) {
+          if (openTimer !== null) {
+            window.clearTimeout(openTimer);
+            openTimer = null;
+          }
+          es?.close();
+          es = null;
+          startPolling();
+        }
+      };
+    };
+
+    startSse();
+
+    return () => {
+      if (openTimer !== null) window.clearTimeout(openTimer);
+      es?.close();
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [addSignal, enabled, intervalMs, stableTemplates]);
 }

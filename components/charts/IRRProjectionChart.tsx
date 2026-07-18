@@ -8,9 +8,11 @@ import type { IrrProjectionPoint } from "@/types";
 export function IRRProjectionChart({
   data,
   comparedNames = [],
+  labelMap = {},
 }: {
   data: IrrProjectionPoint[];
   comparedNames?: string[];
+  labelMap?: Record<string, string>;
 }) {
   const overlayColors = ["#BA73FF", "#FFA632", "#13C6D6", "#FF56A5", "#7BE316"];
 
@@ -34,7 +36,7 @@ export function IRRProjectionChart({
               strokeWidth={1.5}
               strokeDasharray="4 4"
               dot={false}
-              name={`${name} (Base)`}
+              name={`${labelMap[name] ?? name} (Base)`}
             />
           ))}
         </LineChart>
