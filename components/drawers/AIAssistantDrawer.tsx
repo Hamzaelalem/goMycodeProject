@@ -29,7 +29,7 @@ export function AIAssistantDrawer() {
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && closeAIDrawer()}>
-      <SheetContent side="right" className="w-[380px] sm:max-w-[380px] flex flex-col p-0 gap-0">
+      <SheetContent side="right" className="w-[380px] sm:max-w-[380px] flex flex-col p-0 gap-0 overflow-hidden">
         <div className="p-4 space-y-2 border-b border-border/40">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
@@ -93,7 +93,7 @@ export function AIAssistantDrawer() {
           ))}
         </div>
 
-        <ScrollArea className="flex-1 px-4">
+        <ScrollArea className="flex-1 min-h-0 px-4">
           <div className="space-y-3 py-4">
             {messages.map((m) => (
               <div

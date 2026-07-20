@@ -94,6 +94,32 @@ interface GlobalStore {
     underReview: number;
     rejected: number;
     unreadSignals: number;
+    recommendationDetails: Array<{
+      title: string;
+      sector: string;
+      region: string;
+      country: string;
+      status: string;
+      irrPct: number;
+      capitalUsd: number;
+      riskLevel: string;
+      confidence: number;
+      rationale: string;
+    }>;
+    recentSignals: Array<{
+      title: string;
+      type: string;
+      severity: string;
+      sector: string;
+      region: string;
+      sentiment: number;
+      timestamp: string;
+    }>;
+    riskScores: Array<{
+      name: string;
+      score: number;
+      previousScore: number;
+    }>;
   };
 
   bootstrapData: () => Promise<void>;
@@ -240,6 +266,42 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
     const pending = state.recommendations.filter((r) => r.status === "pending_review").length;
     const underReview = state.recommendations.filter((r) => r.status === "under_review").length;
     const rejected = state.recommendations.filter((r) => r.status === "rejected").length;
+
+    // Include detailed recommendation info so the AI can reference specifics
+    const recommendationDetails = state.recommendations.map((r) => ({
+      title: r.title,
+      sector: r.sector,
+      region: r.region,
+      country: r.country,
+      status: r.status,
+      irrPct: r.irrPct,
+      capitalUsd: r.capitalUsd,
+      riskLevel: r.riskLevel,
+      confidence: r.confidence,
+      rationale: r.rationale.slice(0, 200), // trim to keep payload reasonable
+    }));
+
+    // Include last 15 signals for recent context
+    const recentSignals = [...state.signals]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 15)
+      .map((s) => ({
+        title: s.title,
+        type: s.type,
+        severity: s.severity,
+        sector: s.sector,
+        region: s.region,
+        sentiment: s.sentiment,
+        timestamp: s.timestamp,
+      }));
+
+    // Include risk factor scores
+    const riskScores = (state.riskFactorScores ?? []).map((rf) => ({
+      name: rf.name,
+      score: rf.score,
+      previousScore: rf.previousScore,
+    }));
+
     return {
       recommendations: state.recommendations.length,
       approved,
@@ -247,6 +309,9 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
       underReview,
       rejected,
       unreadSignals: state.unreadSignalCount,
+      recommendationDetails,
+      recentSignals,
+      riskScores,
     };
   },
 

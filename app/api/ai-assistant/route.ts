@@ -75,12 +75,43 @@ export async function POST(req: NextRequest) {
 
   if (context) contextParts.push(`Page context: ${context}`);
 
+  // Summary counts
   contextParts.push(
-    `Portfolio snapshot: ${snapshot.recommendations ?? 0} recommendations total, ` +
+    `Portfolio overview: ${snapshot.recommendations ?? 0} recommendations total, ` +
     `${snapshot.approved ?? 0} approved, ${snapshot.pending ?? 0} pending review, ` +
     `${snapshot.underReview ?? 0} under review, ${snapshot.rejected ?? 0} rejected, ` +
     `${snapshot.unreadSignals ?? 0} unread signals.`,
   );
+
+  // Detailed recommendation data
+  const recDetails = snapshot.recommendationDetails;
+  if (Array.isArray(recDetails) && recDetails.length > 0) {
+    const recLines = recDetails.map(
+      (r: { title: string; sector: string; region: string; country: string; status: string; irrPct: number; capitalUsd: number; riskLevel: string; confidence: number; rationale: string }, i: number) =>
+        `  ${i + 1}. "${r.title}" | Sector: ${r.sector} | Region: ${r.region} (${r.country}) | Status: ${r.status} | IRR: ${r.irrPct}% | Capital: $${(r.capitalUsd / 1e6).toFixed(1)}M | Risk: ${r.riskLevel} | Confidence: ${r.confidence}% | Rationale: ${r.rationale}`,
+    );
+    contextParts.push(`\nAll recommendations:\n${recLines.join("\n")}`);
+  }
+
+  // Recent signals
+  const sigDetails = snapshot.recentSignals;
+  if (Array.isArray(sigDetails) && sigDetails.length > 0) {
+    const sigLines = sigDetails.map(
+      (s: { title: string; type: string; severity: string; sector: string; region: string; sentiment: number; timestamp: string }) =>
+        `  - "${s.title}" | Type: ${s.type} | Severity: ${s.severity} | Sector: ${s.sector} | Region: ${s.region} | Sentiment: ${s.sentiment > 0 ? "+" : ""}${s.sentiment}`,
+    );
+    contextParts.push(`\nRecent signals (last 15):\n${sigLines.join("\n")}`);
+  }
+
+  // Risk factor scores
+  const riskScores = snapshot.riskScores;
+  if (Array.isArray(riskScores) && riskScores.length > 0) {
+    const riskLines = riskScores.map(
+      (r: { name: string; score: number; previousScore: number }) =>
+        `  - ${r.name}: ${r.score}/100 (previous: ${r.previousScore}/100, ${r.score > r.previousScore ? "▲ worsening" : r.score < r.previousScore ? "▼ improving" : "→ stable"})`,
+    );
+    contextParts.push(`\nRisk factor scores:\n${riskLines.join("\n")}`);
+  }
 
   if (ragContextBlock) {
     contextParts.push(`\nRelevant portfolio documents:\n${ragContextBlock}`);
@@ -118,7 +149,7 @@ export async function POST(req: NextRequest) {
             },
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 512,
+              maxOutputTokens: 1024,
             }
           })
         }
