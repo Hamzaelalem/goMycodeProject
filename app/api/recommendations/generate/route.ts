@@ -8,8 +8,16 @@ import {
   parseGenerateRecommendationRequest,
   RecommendationValidationError,
 } from "@/lib/recommendations/schema";
+import { clientKey, rateLimit, tooManyRequestsResponse } from "@/lib/rateLimit";
+
+// Paid LLM + RAG call — cap per caller to protect the LLM budget (brief §6).
+const HOUR_MS = 60 * 60 * 1000;
+const GENERATE_LIMIT = Number(process.env.RATE_LIMIT_GENERATE_PER_HOUR ?? 10);
 
 export async function POST(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "generate"), GENERATE_LIMIT, HOUR_MS);
+  if (!limit.ok) return tooManyRequestsResponse(limit);
+
   let body: unknown;
   try {
     body = await req.json();

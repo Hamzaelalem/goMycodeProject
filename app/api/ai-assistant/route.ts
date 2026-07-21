@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchDocuments, formatContextBlock } from "@/lib/rag/search";
+import { clientKey, rateLimit, tooManyRequestsResponse } from "@/lib/rateLimit";
+
+// Paid LLM call per conversational turn — cap per caller (brief §6).
+const HOUR_MS = 60 * 60 * 1000;
+const ASSISTANT_LIMIT = Number(process.env.RATE_LIMIT_ASSISTANT_PER_HOUR ?? 30);
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
@@ -45,6 +50,9 @@ interface OllamaChatChunk {
 }
 
 export async function POST(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "assistant"), ASSISTANT_LIMIT, HOUR_MS);
+  if (!limit.ok) return tooManyRequestsResponse(limit);
+
   const body = await req.json();
 
   const context = String(body?.context ?? "");
