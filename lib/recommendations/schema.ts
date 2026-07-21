@@ -5,6 +5,10 @@ import type {
   ScoreDimension,
 } from "@/types";
 
+export type LlmProvider = "gemini" | "ollama";
+
+export const LLM_PROVIDERS: LlmProvider[] = ["gemini", "ollama"];
+
 export type GenerateRecommendationRequest = {
   focusSector?: string;
   focusRegion?: string;
@@ -12,6 +16,8 @@ export type GenerateRecommendationRequest = {
   capitalRangeUsd?: [number, number];
   riskAppetite?: RiskLevel;
   horizonYears?: number;
+  /** Force a specific LLM; when omitted, falls back to env-based selection. */
+  provider?: LlmProvider;
 };
 
 export type GeneratedRecommendationInput = Omit<
@@ -125,6 +131,11 @@ export function parseGenerateRecommendationRequest(
     throw new RecommendationValidationError("riskAppetite must be low, medium, or high");
   }
 
+  const provider = cleanOptionalString(value.provider);
+  if (provider && !LLM_PROVIDERS.includes(provider as LlmProvider)) {
+    throw new RecommendationValidationError("provider must be gemini or ollama");
+  }
+
   const horizonYears = cleanNumber(value.horizonYears);
   if (horizonYears !== undefined && (horizonYears < 1 || horizonYears > 15)) {
     throw new RecommendationValidationError("horizonYears must be between 1 and 15");
@@ -150,6 +161,7 @@ export function parseGenerateRecommendationRequest(
     capitalRangeUsd,
     riskAppetite: riskAppetite as RiskLevel | undefined,
     horizonYears: horizonYears !== undefined ? Math.round(horizonYears) : undefined,
+    provider: provider as LlmProvider | undefined,
   };
 }
 

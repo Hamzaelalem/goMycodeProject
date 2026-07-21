@@ -19,7 +19,7 @@ export default function RecommendationsPage() {
     confidence,
     flaggedOnly,
     flaggedCount,
-    generating,
+    generatingProvider,
     generationError,
     sectors,
     regions,
@@ -32,6 +32,8 @@ export default function RecommendationsPage() {
     handleGenerateRecommendation,
     resetFilters,
   } = useRecommendationsViewModel();
+
+  const generating = generatingProvider !== null;
 
   if (!recs.length) return <RecommendationSkeleton />;
 
@@ -96,13 +98,25 @@ export default function RecommendationsPage() {
             <p className="text-xs text-destructive">{generationError}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Uses current filters as focus, then saves a pending review item.
+              Uses current filters as focus, then saves a pending review item. Pick a provider.
             </p>
           )}
         </div>
-        <Button onClick={() => void handleGenerateRecommendation()} disabled={generating}>
-          {generating ? "Generating..." : "Generate"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => void handleGenerateRecommendation("gemini")}
+            disabled={generating}
+          >
+            {generatingProvider === "gemini" ? "Generating…" : "Generate · Gemini"}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => void handleGenerateRecommendation("ollama")}
+            disabled={generating}
+          >
+            {generatingProvider === "ollama" ? "Generating…" : "Generate · Ollama"}
+          </Button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (

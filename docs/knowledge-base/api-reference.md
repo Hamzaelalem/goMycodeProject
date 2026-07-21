@@ -29,7 +29,7 @@ Legend: **params** = query string; **body** = JSON. Success/error status codes n
 - **Consumers:** `updateRecommendationStatusApi` ← `updateRecommendationStatus` (store).
 
 ### `POST /api/recommendations/generate`
-- **Body:** `GenerateRecommendationRequest` = `{ focusSector?, focusRegion?, focusCountry?, capitalRangeUsd?:[number,number], riskAppetite?:RiskLevel, horizonYears? }` — validated by `parseGenerateRecommendationRequest`.
+- **Body:** `GenerateRecommendationRequest` = `{ focusSector?, focusRegion?, focusCountry?, capitalRangeUsd?:[number,number], riskAppetite?:RiskLevel, horizonYears?, provider?:"gemini"|"ollama" }` — validated by `parseGenerateRecommendationRequest`. `provider` forces the LLM (UI exposes **Generate · Gemini** / **Generate · Ollama** buttons); omitted → env-based selection (Gemini if `GEMINI_API_KEY`, else Ollama). `provider:"gemini"` with no key → `502`.
 - **Logic:** `generateRecommendation(request)` (LLM + RAG + DB context; persists a new recommendation + `auditLog action:"generated"`). See [ai-subsystem.md](ai-subsystem.md).
 - **Response:** `201 { recommendation }` · `400 { error }` (validation) · `502 { error, detail }` (malformed LLM output) · `500 { error }`.
 - **Consumers:** `generateRecommendationApi` ← recs VM.

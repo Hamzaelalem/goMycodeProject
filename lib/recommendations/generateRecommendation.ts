@@ -34,20 +34,30 @@ export class MalformedLlmOutputError extends Error {
   }
 }
 
-async function generateRecommendationJson(prompt: string): Promise<{
-  modelVersion: string;
-  output: unknown;
-}> {
-  if (process.env.GEMINI_API_KEY) {
+async function generateRecommendationJson(
+  prompt: string,
+  provider: GenerateRecommendationRequest["provider"],
+): Promise<{ modelVersion: string; output: unknown }> {
+  // Explicit provider wins; otherwise fall back to env-based selection.
+  const useOllama =
+    provider === "ollama" || (provider === undefined && !process.env.GEMINI_API_KEY);
+
+  if (useOllama) {
     return {
-      modelVersion: `gemini:${GEMINI_MODEL}`,
-      output: await generateJsonWithGemini(prompt),
+      modelVersion: `ollama:${OLLAMA_MODEL}`,
+      output: await generateJsonWithOllama(prompt),
     };
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    throw new MalformedLlmOutputError(
+      "Gemini was requested but GEMINI_API_KEY is not set. Set the key or generate with Ollama.",
+    );
+  }
+
   return {
-    modelVersion: `ollama:${OLLAMA_MODEL}`,
-    output: await generateJsonWithOllama(prompt),
+    modelVersion: `gemini:${GEMINI_MODEL}`,
+    output: await generateJsonWithGemini(prompt),
   };
 }
 
@@ -287,7 +297,7 @@ export async function generateRecommendation(
   let generated: GeneratedRecommendationInput;
   let modelVersion = `ollama:${OLLAMA_MODEL}`;
   try {
-    const llmResult = await generateRecommendationJson(prompt);
+    const llmResult = await generateRecommendationJson(prompt, request.provider);
     modelVersion = llmResult.modelVersion;
     generated = validateGeneratedRecommendationJson(llmResult.output);
   } catch (error) {

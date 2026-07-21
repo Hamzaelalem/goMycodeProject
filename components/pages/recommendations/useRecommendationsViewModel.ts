@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { generateRecommendationApi } from "@/lib/api/mutations";
 import { isFlaggedForReview } from "@/types";
+import type { LlmProvider } from "@/lib/recommendations/schema";
 
 export function useRecommendationsViewModel() {
   const recs = useGlobalStore((s) => s.recommendations);
@@ -19,7 +20,7 @@ export function useRecommendationsViewModel() {
   const [status, setStatus] = useState<string>("all");
   const [confidence, setConfidence] = useState(60);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingProvider, setGeneratingProvider] = useState<LlmProvider | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   const sectors = useMemo(() => Array.from(new Set(recs.map((r) => r.sector))), [recs]);
@@ -41,18 +42,19 @@ export function useRecommendationsViewModel() {
 
   const flaggedCount = useMemo(() => recs.filter(isFlaggedForReview).length, [recs]);
 
-  async function handleGenerateRecommendation() {
+  async function handleGenerateRecommendation(provider: LlmProvider) {
     setGenerationError(null);
-    setGenerating(true);
+    setGeneratingProvider(provider);
     const result = await generateRecommendationApi({
       focusSector: sector !== "all" ? sector : undefined,
       focusRegion: region !== "all" ? region : undefined,
       riskAppetite: risk !== "all" ? (risk as "low" | "medium" | "high") : undefined,
       horizonYears: 6,
+      provider,
     });
     if (!result.success) {
       setGenerationError(result.error ?? "Generation failed");
-      setGenerating(false);
+      setGeneratingProvider(null);
       return;
     }
     setRisk("all");
@@ -64,7 +66,7 @@ export function useRecommendationsViewModel() {
       setActiveSectorFilter(result.data.sector);
     }
     await bootstrapData();
-    setGenerating(false);
+    setGeneratingProvider(null);
   }
 
   function resetFilters() {
@@ -86,7 +88,7 @@ export function useRecommendationsViewModel() {
     confidence,
     flaggedOnly,
     flaggedCount,
-    generating,
+    generatingProvider,
     generationError,
     sectors,
     regions,

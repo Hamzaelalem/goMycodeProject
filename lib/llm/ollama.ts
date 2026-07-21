@@ -1,5 +1,8 @@
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 export const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
+// Local inference can be slow (cold model load + CPU offload); bound it so a
+// hung request fails instead of blocking the route forever. Configurable.
+const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS ?? 180_000);
 
 type OllamaGenerateResponse = {
   response?: string;
@@ -31,24 +34,42 @@ function extractJsonObject(text: string): unknown {
 }
 
 export async function generateJsonWithOllama(prompt: string): Promise<unknown> {
-  const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      stream: false,
-      format: "json",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an investment analyst. Return exactly one valid JSON object and no prose.",
-        },
-        { role: "user", content: prompt },
-      ],
-      options: { temperature: 0.25, num_predict: 1200 },
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        format: "json",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an investment analyst. Return exactly one valid JSON object and no prose.",
+          },
+          { role: "user", content: prompt },
+        ],
+        options: { temperature: 0.25, num_predict: 1200 },
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `Ollama did not respond within ${Math.round(OLLAMA_TIMEOUT_MS / 1000)}s (model may be cold-loading or too slow on this machine).`,
+      );
+    }
+    throw new Error(
+      `Ollama request failed: ${error instanceof Error ? error.message : "unknown error"}. Is 'ollama serve' running?`,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => res.statusText);
