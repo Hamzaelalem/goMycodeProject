@@ -27,6 +27,7 @@ model Recommendation {
   modelVersion   String
   generatedAt    DateTime
   riskFactors    String[]
+  dataSource     String   @default("mock") // "mock" (seeded fixture) | "live" (pipeline-produced)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -65,6 +66,7 @@ model Signal {
   workflowItemId   String?
   url              String?
   publisher        String?
+  dataSource       String   @default("mock") // "mock" (seeded fixture) | "live" (news ingest)
 
   @@index([timestamp])
   @@map("signals")
@@ -79,14 +81,16 @@ model RiskFactorScore {
   sparklineData  Float[]
   source         String
   region         String
+  dataSource     String   @default("mock") // "mock" (seeded fixture) | "live" (real inputs)
 
   @@map("risk_factor_scores")
 }
 
 /// One row per ESG sector; `payload` stores `{ kpis, scores }` from `EsgSectorInputs`.
 model EsgSectorInput {
-  sector  String @id
-  payload Json
+  sector     String @id
+  payload    Json
+  dataSource String @default("mock") // "mock" (seeded fixture) | "live" (real inputs)
 
   @@map("esg_sector_inputs")
 }

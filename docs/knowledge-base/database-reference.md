@@ -23,8 +23,9 @@ Only `Recommendation → RecommendationAuditLog` is an enforced FK (ON DELETE CA
 ## Models
 
 ### `Recommendation` → `recommendations`
-`id String @id`, `rank Int`, `title String`, `region String`, `sector String`, `country String`, `capitalUsd Float`, `irrPct Float`, `horizonYears Int`, `riskLevel String`, `confidence Int`, `status String`, `tags String[]`, `rationale String @db.Text`, `scoreBreakdown Json`, `modelVersion String`, `generatedAt DateTime`, `riskFactors String[]`, `createdAt @default(now())`, `updatedAt @updatedAt`. Relation `auditLogs RecommendationAuditLog[]`.
+`id String @id`, `rank Int`, `title String`, `region String`, `sector String`, `country String`, `capitalUsd Float`, `irrPct Float`, `horizonYears Int`, `riskLevel String`, `confidence Int`, `status String`, `tags String[]`, `rationale String @db.Text`, `scoreBreakdown Json`, `modelVersion String`, `generatedAt DateTime`, `riskFactors String[]`, `dataSource String @default("mock")`, `createdAt @default(now())`, `updatedAt @updatedAt`. Relation `auditLogs RecommendationAuditLog[]`.
 - **Business meaning:** an AI investment recommendation. `status` is lowercase (`pending_review`/`under_review`/`approved`/`rejected`); `riskLevel` low/medium/high; `scoreBreakdown` = 6 `{dimension, score}`; `riskFactors` are names matching `RiskFactorScore.name`.
+- **`dataSource`** (also on `Signal`, `RiskFactorScore`, `EsgSectorInput`): `"mock"` for seeded fixtures (the default, so all seed rows inherit it), `"live"` for pipeline-produced rows — set explicitly by `generateRecommendation` (AI recs) and the news ingester (signals). DB-level lifecycle flag per brief §4.2 so mock rows can be replaced without app-layer changes; **not** threaded through the domain types/mappers. Column is camelCase `dataSource` (this schema uses camelCase columns), not the brief's illustrative `data_source`.
 - **Lifecycle:** seeded (12) or created by `generateRecommendation` (`id = rec-ai-<uuid>`, status `pending_review`, `rank = maxRank+1`); status changes via `PATCH` (each writes an audit log).
 
 ### `RecommendationAuditLog` → `recommendation_audit_logs`

@@ -146,6 +146,7 @@ export async function runNewsIngest(opts?: { limitPerQuery?: number }): Promise<
         sector: r.sector,
         url: r.url,
         publisher: r.publisher,
+        dataSource: "live", // real news articles, not seeded fixtures
       })),
       skipDuplicates: true,
     });

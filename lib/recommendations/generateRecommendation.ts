@@ -332,6 +332,7 @@ export async function generateRecommendation(
       modelVersion,
       generatedAt: new Date(),
       riskFactors: generated.riskFactors,
+      dataSource: "live", // pipeline-produced, not a seeded fixture
       auditLogs: {
         create: {
           action: "generated",
