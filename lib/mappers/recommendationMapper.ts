@@ -20,6 +20,7 @@ export function mapRecommendationFromDb(row: RecommendationRow): Recommendation 
     scoreBreakdown: row.scoreBreakdown as unknown as Recommendation["scoreBreakdown"],
     modelVersion: row.modelVersion,
     generatedAt: row.generatedAt.toISOString(),
+    dataSource: row.dataSource === "live" ? "live" : "mock",
     riskFactors: row.riskFactors,
   };
 }

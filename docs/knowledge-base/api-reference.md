@@ -18,8 +18,9 @@ Legend: **params** = query string; **body** = JSON. Success/error status codes n
 
 ### `GET /api/recommendations/[id]`
 - **Params:** `id` (from `await context.params`).
-- **Logic:** `findUnique({ where: { id } })`.
-- **Response:** `200` `Recommendation` · `404 { error:"Not found" }` · `500 { error }`.
+- **Logic:** `findUnique({ where: { id }, include: { auditLogs: { orderBy: { at: "asc" } } } })`.
+- **Response:** `200` `RecommendationDetail` = mapped `Recommendation` **plus** `auditLogs: { id, action, comment, at }[]` (the durable `RecommendationAuditLog` trail — includes the Step-5 confidence reconciliation on the `generated`/`generated_flagged` entry) · `404 { error:"Not found" }` · `500 { error }`.
+- **Consumers:** `fetchRecommendationDetailApi` ← RecommendationDrawer (audit trail + flag surfacing).
 
 ### `PATCH /api/recommendations/[id]`
 - **Body:** `{ status?: string, comment?: string }`. `status` must be in the valid set (else `400 { error:"Invalid status" }`).

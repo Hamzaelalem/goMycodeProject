@@ -14,7 +14,7 @@ import {
   SCORE_DIMENSIONS,
   validateGeneratedRecommendationJson,
 } from "@/lib/recommendations/schema";
-import type { Recommendation } from "@/types";
+import { REVIEW_FLAG_TAG, type Recommendation } from "@/types";
 import { recommendations as mockRecommendations } from "@/mock-data/recommendations";
 import { seededSignals as mockSignals } from "@/mock-data/signals";
 import { riskScores as mockRiskScores } from "@/mock-data/riskScores";
@@ -26,7 +26,6 @@ import { esgInputs as mockEsgInputs } from "@/mock-data/esgInputs";
  * review rather than surfacing it as a normal high-confidence result.
  */
 const CONFIDENCE_REVIEW_THRESHOLD = 15;
-const REVIEW_FLAG_TAG = "Needs Review";
 
 export class MalformedLlmOutputError extends Error {
   constructor(message: string) {

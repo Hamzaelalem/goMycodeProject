@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, X } from "lucide-react";
+import { AlertTriangle, Eye, X } from "lucide-react";
 
 import { ConfidenceGauge } from "@/components/ui/ConfidenceGauge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,11 +9,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { formatCurrencyCompact, formatPct } from "@/lib/utils/formatters";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
-import type { Recommendation } from "@/types";
+import { isFlaggedForReview, REVIEW_FLAG_TAG, type Recommendation } from "@/types";
 
 export function RecommendationCard({ rec }: { rec: Recommendation }) {
   const openRecommendationDrawer = useGlobalStore((s) => s.openRecommendationDrawer);
   const updateRecommendationStatus = useGlobalStore((s) => s.updateRecommendationStatus);
+
+  const flagged = isFlaggedForReview(rec);
+  const displayTags = rec.tags.filter((t) => t !== REVIEW_FLAG_TAG).slice(0, 2);
+  const provenanceLabel = rec.dataSource === "live" ? "AI-generated" : "Seed";
 
   return (
     <Card className="rounded-xl border shadow-none">
@@ -29,7 +33,12 @@ export function RecommendationCard({ rec }: { rec: Recommendation }) {
         <div className="flex flex-wrap gap-2">
           <StatusBadge kind="workflow" value={rec.status === "pending_review" ? "PENDING_REVIEW" : rec.status === "under_review" ? "UNDER_REVIEW" : rec.status === "approved" ? "APPROVED" : "REJECTED"} />
           <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{rec.sector}</span>
-          {rec.tags.slice(0, 2).map((t) => (
+          {flagged ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" aria-hidden /> Needs review
+            </span>
+          ) : null}
+          {displayTags.map((t) => (
             <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{t}</span>
           ))}
         </div>
@@ -40,7 +49,7 @@ export function RecommendationCard({ rec }: { rec: Recommendation }) {
           <div>Risk: {rec.riskLevel}</div>
         </div>
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>{rec.modelVersion}</span>
+          <span>{provenanceLabel} · {rec.modelVersion}</span>
           <TimeAgo iso={rec.generatedAt} />
         </div>
         <div className="flex gap-2">

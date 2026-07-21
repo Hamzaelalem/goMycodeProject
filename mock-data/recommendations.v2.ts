@@ -2,7 +2,7 @@ import type { Recommendation } from "@/types";
 
 const now = Date.now();
 
-export const recommendations: Recommendation[] = [
+const seededRecommendations: Omit<Recommendation, "dataSource">[] = [
   {
     id: "r-001",
     rank: 1,
@@ -340,3 +340,9 @@ export const recommendations: Recommendation[] = [
     riskFactors: ["Geopolitical", "Market", "Liquidity"],
   },
 ];
+
+// Seeded fixtures are all mock provenance; AI-generated recs are tagged "live" at write time.
+export const recommendations: Recommendation[] = seededRecommendations.map((rec) => ({
+  ...rec,
+  dataSource: "mock",
+}));

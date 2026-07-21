@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { generateRecommendationApi } from "@/lib/api/mutations";
+import { isFlaggedForReview } from "@/types";
 
 export function useRecommendationsViewModel() {
   const recs = useGlobalStore((s) => s.recommendations);
@@ -17,6 +18,7 @@ export function useRecommendationsViewModel() {
   const [risk, setRisk] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [confidence, setConfidence] = useState(60);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
@@ -31,10 +33,13 @@ export function useRecommendationsViewModel() {
         if (risk !== "all" && r.riskLevel !== risk) return false;
         if (status !== "all" && r.status !== status) return false;
         if (r.confidence < confidence) return false;
+        if (flaggedOnly && !isFlaggedForReview(r)) return false;
         return true;
       }),
-    [confidence, recs, region, risk, sector, status],
+    [confidence, flaggedOnly, recs, region, risk, sector, status],
   );
+
+  const flaggedCount = useMemo(() => recs.filter(isFlaggedForReview).length, [recs]);
 
   async function handleGenerateRecommendation() {
     setGenerationError(null);
@@ -68,6 +73,7 @@ export function useRecommendationsViewModel() {
     setRisk("all");
     setStatus("all");
     setConfidence(60);
+    setFlaggedOnly(false);
   }
 
   return {
@@ -78,6 +84,8 @@ export function useRecommendationsViewModel() {
     risk,
     status,
     confidence,
+    flaggedOnly,
+    flaggedCount,
     generating,
     generationError,
     sectors,
@@ -87,6 +95,7 @@ export function useRecommendationsViewModel() {
     setRisk,
     setStatus,
     setConfidence,
+    setFlaggedOnly,
     handleGenerateRecommendation,
     resetFilters,
   };

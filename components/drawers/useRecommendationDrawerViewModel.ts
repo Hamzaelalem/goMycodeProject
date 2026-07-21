@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
+import { fetchRecommendationDetailApi } from "@/lib/api/mutations";
+import { isFlaggedForReview, type RecommendationAuditEntry } from "@/types";
 
 export function useRecommendationDrawerViewModel() {
   const router = useRouter();
@@ -25,6 +27,26 @@ export function useRecommendationDrawerViewModel() {
     if (!selected) return [];
     return workflowLogEntries.filter((w) => w.recommendationId === selected.id);
   }, [selected, workflowLogEntries]);
+
+  const flagged = selected ? isFlaggedForReview(selected) : false;
+
+  // Load the durable audit trail (generation reconciliation + status changes)
+  // for the open recommendation. Keyed by id so a stale fetch never shows under
+  // a newly selected rec, and no synchronous reset in the effect body.
+  const [detail, setDetail] = useState<{ id: string; logs: RecommendationAuditEntry[] } | null>(null);
+  useEffect(() => {
+    if (!open || !selected) return;
+    let active = true;
+    void fetchRecommendationDetailApi(selected.id).then((res) => {
+      if (active && res.success && res.data) {
+        setDetail({ id: selected.id, logs: res.data.auditLogs });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [open, selected]);
+  const auditLogs = detail && selected && detail.id === selected.id ? detail.logs : [];
 
   function handleApprove() {
     if (selected) {
@@ -52,6 +74,8 @@ export function useRecommendationDrawerViewModel() {
     open,
     close,
     selected,
+    flagged,
+    auditLogs,
     linkedSignals,
     entries,
     handleApprove,

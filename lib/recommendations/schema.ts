@@ -16,7 +16,7 @@ export type GenerateRecommendationRequest = {
 
 export type GeneratedRecommendationInput = Omit<
   Recommendation,
-  "id" | "rank" | "status" | "modelVersion" | "generatedAt"
+  "id" | "rank" | "status" | "modelVersion" | "generatedAt" | "dataSource"
 >;
 
 export class RecommendationValidationError extends Error {

@@ -1,4 +1,4 @@
-import type { EsgSectorInputs, Recommendation, ScenarioInputs } from "@/types";
+import type { EsgSectorInputs, Recommendation, RecommendationDetail, ScenarioInputs } from "@/types";
 import type { GenerateRecommendationRequest } from "@/lib/recommendations/schema";
 import type { IngestMode, IngestSummary } from "@/lib/ingest/types";
 import type { ScenarioBundle } from "@/lib/scenarios/compute";
@@ -23,6 +23,22 @@ export async function updateRecommendationStatusApi(
       return { success: false, error: err.error ?? `HTTP ${res.status}` };
     }
     const data = (await res.json()) as Recommendation;
+    return { success: true, data };
+  } catch {
+    return { success: false, error: "Network error" };
+  }
+}
+
+export async function fetchRecommendationDetailApi(
+  id: string,
+): Promise<{ success: boolean; data?: RecommendationDetail; error?: string }> {
+  try {
+    const res = await fetch(`/api/recommendations/${id}`);
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      return { success: false, error: err.error ?? `HTTP ${res.status}` };
+    }
+    const data = (await res.json()) as RecommendationDetail;
     return { success: true, data };
   } catch {
     return { success: false, error: "Network error" };

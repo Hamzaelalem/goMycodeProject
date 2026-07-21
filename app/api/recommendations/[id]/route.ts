@@ -16,9 +16,21 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, context: RouteParams) {
   try {
     const { id } = await context.params;
-    const row = await prisma.recommendation.findUnique({ where: { id } });
+    const row = await prisma.recommendation.findUnique({
+      where: { id },
+      include: { auditLogs: { orderBy: { at: "asc" } } },
+    });
     if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(mapRecommendationFromDb(row));
+    const { auditLogs, ...rec } = row;
+    return NextResponse.json({
+      ...mapRecommendationFromDb(rec),
+      auditLogs: auditLogs.map((log) => ({
+        id: log.id,
+        action: log.action,
+        comment: log.comment,
+        at: log.at.toISOString(),
+      })),
+    });
   } catch (error) {
     console.error("[GET /api/recommendations/:id]", error);
     return NextResponse.json({ error: "Failed to fetch recommendation" }, { status: 500 });

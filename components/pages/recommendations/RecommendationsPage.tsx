@@ -17,6 +17,8 @@ export default function RecommendationsPage() {
     risk,
     status,
     confidence,
+    flaggedOnly,
+    flaggedCount,
     generating,
     generationError,
     sectors,
@@ -26,6 +28,7 @@ export default function RecommendationsPage() {
     setRisk,
     setStatus,
     setConfidence,
+    setFlaggedOnly,
     handleGenerateRecommendation,
     resetFilters,
   } = useRecommendationsViewModel();
@@ -34,7 +37,7 @@ export default function RecommendationsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-6">
+      <div className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-4 lg:grid-cols-7">
         <Select value={region} onValueChange={setRegion}>
           <SelectTrigger><SelectValue placeholder="Region" /></SelectTrigger>
           <SelectContent>
@@ -75,6 +78,13 @@ export default function RecommendationsPage() {
             setConfidence(typeof n === "number" ? n : 60);
           }} />
         </div>
+        <Button
+          variant={flaggedOnly ? "default" : "outline"}
+          onClick={() => setFlaggedOnly(!flaggedOnly)}
+          aria-pressed={flaggedOnly}
+        >
+          Needs review{flaggedCount > 0 ? ` (${flaggedCount})` : ""}
+        </Button>
         <Button variant="outline" onClick={resetFilters}>
           Reset filters
         </Button>
