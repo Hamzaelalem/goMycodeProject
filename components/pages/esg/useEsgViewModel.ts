@@ -14,7 +14,7 @@ export function useEsgViewModel() {
 
   const [data, setData] = useState<EsgSectorInputs[]>(() => useGlobalStore.getState().esgSectors);
   const [sector, setSector] = useState<string>(
-    selected?.sector ?? useGlobalStore.getState().esgSectors[0]?.sector ?? "Solar",
+    selected?.sector ?? useGlobalStore.getState().esgSectors[0]?.sector ?? "Solar & Energy",
   );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

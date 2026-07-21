@@ -43,7 +43,7 @@ Only `Recommendation → RecommendationAuditLog` is an enforced FK (ON DELETE CA
 
 ### `EsgSectorInput` → `esg_sector_inputs`
 `sector String @id`, `payload Json`.
-- **Meaning:** per-sector ESG bundle. `payload` = `{ kpis: EsgSectorKpi[], scores: {E,S,G,overall,grade} }`. Editable via `PATCH /api/esg` (whole payload replaced). Seeded (~8 sectors).
+- **Meaning:** per-sector ESG bundle. `payload` = `{ kpis: EsgSectorKpi[], scores: {E,S,G,overall,grade} }`. Editable via `PATCH /api/esg` (whole payload replaced). Seeded with the brief's **9 sectors** (§5.2): Solar & Energy, Oil & Gas, Properties, Banking, Hospitals, Hotels, Water Treatment, Agriculture, Logistics — the canonical sector taxonomy used across recommendations/signals/portfolio.
 
 ### `ScenarioSnapshot` → `scenario_snapshots`
 `id @default(cuid())`, `key String @unique @default("default")`, `defaultInputs Json`, `scenarioCards Json`, `irrProjection Json`, `updatedAt @updatedAt`.

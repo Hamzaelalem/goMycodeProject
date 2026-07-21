@@ -35,7 +35,7 @@ export const seededSignals: Signal[] = [
     source: "talkwalker",
     country: "CL",
     region: "Latin America",
-    sector: "Materials",
+    sector: "Hotels",
     riskFactor: "ESG / Reputation",
   },
 
@@ -52,7 +52,7 @@ export const seededSignals: Signal[] = [
     source: "bloomberg",
     country: "US",
     region: "North America",
-    sector: "Oil&Gas",
+    sector: "Oil & Gas",
     riskFactor: "Market",
   },
   {
@@ -67,7 +67,7 @@ export const seededSignals: Signal[] = [
     source: "internal",
     country: "SG",
     region: "APAC",
-    sector: "Industrials",
+    sector: "Logistics",
     riskFactor: "Operational",
   },
   {
@@ -97,7 +97,7 @@ export const seededSignals: Signal[] = [
     source: "bloomberg",
     country: "ES",
     region: "Europe",
-    sector: "Solar",
+    sector: "Solar & Energy",
   },
   {
     id: "s-007",
@@ -111,7 +111,7 @@ export const seededSignals: Signal[] = [
     source: "internal",
     country: "GB",
     region: "Europe",
-    sector: "Water",
+    sector: "Water Treatment",
     riskFactor: "Liquidity",
   },
 
@@ -128,7 +128,7 @@ export const seededSignals: Signal[] = [
     source: "bloomberg",
     country: "ES",
     region: "Europe",
-    sector: "Solar",
+    sector: "Solar & Energy",
   },
   {
     id: "s-009",
@@ -217,7 +217,7 @@ export const seededSignals: Signal[] = [
     source: "talkwalker",
     country: "GB",
     region: "Europe",
-    sector: "Oil&Gas",
+    sector: "Oil & Gas",
     riskFactor: "Operational",
   },
   {
@@ -232,7 +232,7 @@ export const seededSignals: Signal[] = [
     source: "internal",
     country: "CL",
     region: "Latin America",
-    sector: "Water",
+    sector: "Water Treatment",
     riskFactor: "Regulatory",
   },
 
@@ -249,7 +249,7 @@ export const seededSignals: Signal[] = [
     source: "internal",
     country: "ES",
     region: "Europe",
-    sector: "Solar",
+    sector: "Solar & Energy",
   },
   {
     id: "s-017",
@@ -263,7 +263,7 @@ export const seededSignals: Signal[] = [
     source: "internal",
     country: "ES",
     region: "Europe",
-    sector: "Solar",
+    sector: "Solar & Energy",
   },
   {
     id: "s-018",
@@ -319,7 +319,7 @@ export const seededSignals: Signal[] = [
     source: "internal",
     country: "ES",
     region: "Europe",
-    sector: "Solar",
+    sector: "Solar & Energy",
   },
   {
     id: "s-022",
@@ -333,7 +333,7 @@ export const seededSignals: Signal[] = [
     source: "bloomberg",
     country: "CL",
     region: "Latin America",
-    sector: "Materials",
+    sector: "Hotels",
   },
   {
     id: "s-023",
@@ -375,7 +375,7 @@ export const seededSignals: Signal[] = [
     source: "bloomberg",
     country: "US",
     region: "North America",
-    sector: "Solar",
+    sector: "Solar & Energy",
   },
   {
     id: "s-026",
@@ -403,7 +403,7 @@ export const seededSignals: Signal[] = [
     source: "talkwalker",
     country: "SG",
     region: "APAC",
-    sector: "Industrials",
+    sector: "Logistics",
     riskFactor: "Operational",
   },
 ];
