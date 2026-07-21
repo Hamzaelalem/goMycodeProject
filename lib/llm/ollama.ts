@@ -47,6 +47,8 @@ export async function generateJsonWithOllama(prompt: string): Promise<unknown> {
         model: OLLAMA_MODEL,
         stream: false,
         format: "json",
+        // Keep the model resident so the next call skips the cold load.
+        keep_alive: "30m",
         messages: [
           {
             role: "system",
@@ -55,7 +57,8 @@ export async function generateJsonWithOllama(prompt: string): Promise<unknown> {
           },
           { role: "user", content: prompt },
         ],
-        options: { temperature: 0.25, num_predict: 1200 },
+        // JSON mode stops at the closing brace; the cap just bounds runaway output.
+        options: { temperature: 0.25, num_predict: 768 },
       }),
     });
   } catch (error) {

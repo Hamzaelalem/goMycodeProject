@@ -34,15 +34,20 @@ export class MalformedLlmOutputError extends Error {
   }
 }
 
+/** Resolve the effective provider: explicit choice wins, else env-based. */
+function resolveProvider(
+  provider: GenerateRecommendationRequest["provider"],
+): "ollama" | "gemini" {
+  if (provider === "ollama") return "ollama";
+  if (provider === "gemini") return "gemini";
+  return process.env.GEMINI_API_KEY ? "gemini" : "ollama";
+}
+
 async function generateRecommendationJson(
   prompt: string,
-  provider: GenerateRecommendationRequest["provider"],
+  provider: "ollama" | "gemini",
 ): Promise<{ modelVersion: string; output: unknown }> {
-  // Explicit provider wins; otherwise fall back to env-based selection.
-  const useOllama =
-    provider === "ollama" || (provider === undefined && !process.env.GEMINI_API_KEY);
-
-  if (useOllama) {
+  if (provider === "ollama") {
     return {
       modelVersion: `ollama:${OLLAMA_MODEL}`,
       output: await generateJsonWithOllama(prompt),
@@ -159,6 +164,47 @@ function isDuplicateTitle(title: string, existingTitles: string[]): boolean {
     const other = normalizeTitle(existing);
     return other === normalized || other.includes(normalized) || normalized.includes(other);
   });
+}
+
+/** Short RAG summary (one chunk) for the latency-sensitive local path. */
+function summarizeRagShort(results: SearchResult[]): string {
+  if (!results.length) return "";
+  const top = results[0]!;
+  return `${top.title}: ${compactText(top.content, 400)}`;
+}
+
+/**
+ * Compact prompt for local (Ollama) generation. Drops the heavy signals /
+ * risk-score / ESG / scenario / market dumps that dominate CPU prompt-eval,
+ * keeping only what's needed for a valid, non-duplicate recommendation.
+ */
+function buildLeanPrompt(input: {
+  request: GenerateRecommendationRequest;
+  recommendations: Recommendation[];
+  existingTitles: string[];
+  riskFactorNames: string[];
+  ragContext: string;
+}): string {
+  const excluded = input.existingTitles.slice(0, 12);
+  const recent = input.recommendations
+    .slice(0, 5)
+    .map((rec) => `${rec.title} [${rec.sector}/${rec.country}]`);
+
+  return `Generate ONE new investment recommendation for the CLIENT Executive Command Center.
+Return a single JSON object only — no markdown, no prose.
+
+Schema:
+{"title":string,"region":string,"sector":string,"country":string,"capitalUsd":number,"irrPct":number,"horizonYears":number,"riskLevel":"low"|"medium"|"high","confidence":number,"tags":string[],"rationale":string,"scoreBreakdown":[${SCORE_DIMENSIONS.map((d) => `{"dimension":"${d}","score":number}`).join(",")}],"riskFactors":string[]}
+
+Rules:
+- rationale under 60 words; 3-5 tags; 2-4 riskFactors chosen from ${JSON.stringify(input.riskFactorNames)}.
+- Do not reuse an excluded title; prefer a different country or thesis.
+- Honor the request's focus fields and capital/horizon when provided.
+
+Request: ${safeJson(input.request)}
+Excluded titles: ${safeJson(excluded)}
+Recent recommendations: ${safeJson(recent)}
+${input.ragContext ? `Grounding: ${input.ragContext}` : ""}`;
 }
 
 function buildPrompt(input: {
@@ -278,26 +324,35 @@ export async function generateRecommendation(
   }
 
   const mappedRecommendations = recommendationRows.map(mapRecommendationFromDb);
-  const simulatedMarketContext = buildSimulatedMarketContext(
-    request,
-    recommendationRows.length,
-  );
-  const prompt = buildPrompt({
-    request,
-    recommendations: mappedRecommendations,
-    existingTitles: mappedRecommendations.map((rec) => rec.title),
-    signals: signalRows,
-    riskScores: riskRows,
-    esgSectors: esgRows,
-    scenarioSnapshot,
-    simulatedMarketContext,
-    ragContext: summarizeRag(ragResults),
-  });
+  const provider = resolveProvider(request.provider);
+
+  // Local inference is CPU-bound, so send Ollama a compact prompt; Gemini gets
+  // the full context.
+  const prompt =
+    provider === "ollama"
+      ? buildLeanPrompt({
+          request,
+          recommendations: mappedRecommendations,
+          existingTitles: mappedRecommendations.map((rec) => rec.title),
+          riskFactorNames: riskRows.map((row) => row.name),
+          ragContext: summarizeRagShort(ragResults),
+        })
+      : buildPrompt({
+          request,
+          recommendations: mappedRecommendations,
+          existingTitles: mappedRecommendations.map((rec) => rec.title),
+          signals: signalRows,
+          riskScores: riskRows,
+          esgSectors: esgRows,
+          scenarioSnapshot,
+          simulatedMarketContext: buildSimulatedMarketContext(request, recommendationRows.length),
+          ragContext: summarizeRag(ragResults),
+        });
 
   let generated: GeneratedRecommendationInput;
   let modelVersion = `ollama:${OLLAMA_MODEL}`;
   try {
-    const llmResult = await generateRecommendationJson(prompt, request.provider);
+    const llmResult = await generateRecommendationJson(prompt, provider);
     modelVersion = llmResult.modelVersion;
     generated = validateGeneratedRecommendationJson(llmResult.output);
   } catch (error) {
