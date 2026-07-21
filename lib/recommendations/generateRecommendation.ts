@@ -20,6 +20,14 @@ import { seededSignals as mockSignals } from "@/mock-data/signals";
 import { riskScores as mockRiskScores } from "@/mock-data/riskScores";
 import { esgInputs as mockEsgInputs } from "@/mock-data/esgInputs";
 
+/**
+ * Brief §4.1 Step 5: if the LLM's confidence deviates from the risk-adjusted
+ * estimate by more than this many points, flag the recommendation for human
+ * review rather than surfacing it as a normal high-confidence result.
+ */
+const CONFIDENCE_REVIEW_THRESHOLD = 15;
+const REVIEW_FLAG_TAG = "Needs Review";
+
 export class MalformedLlmOutputError extends Error {
   constructor(message: string) {
     super(message);
@@ -306,7 +314,25 @@ export async function generateRecommendation(
   const capitalUsd = request.capitalRangeUsd
     ? Math.round(clamp(generated.capitalUsd, request.capitalRangeUsd[0], request.capitalRangeUsd[1]))
     : generated.capitalUsd;
-  const confidence = computeConfidence(generated, riskRows, sectorEsgScore);
+  // Step 5 — cross-check the LLM's self-reported confidence against the
+  // risk-adjusted estimate. Large divergence means the model is out of step
+  // with the risk engine, so flag it for a human instead of trusting it.
+  const riskAdjustedConfidence = computeConfidence(generated, riskRows, sectorEsgScore);
+  const confidenceDeviation = Math.abs(generated.confidence - riskAdjustedConfidence);
+  const flaggedForReview = confidenceDeviation > CONFIDENCE_REVIEW_THRESHOLD;
+  const confidence = riskAdjustedConfidence;
+  const tags = flaggedForReview ? [...generated.tags, REVIEW_FLAG_TAG] : generated.tags;
+
+  const ragNote =
+    ragResults.length > 0
+      ? `Generated with ${ragResults.length} retrieved RAG chunks and simulated market context.`
+      : "Generated with simulated market context; RAG retrieval returned no chunks.";
+  const confidenceNote = `LLM confidence ${generated.confidence} vs risk-adjusted ${riskAdjustedConfidence} (Δ${confidenceDeviation}).${
+    flaggedForReview
+      ? " Flagged for human review: confidence variance exceeds 15 points."
+      : ""
+  }`;
+
   const scoreBreakdown = adjustRiskScoreBreakdown(generated, riskRows);
   const rank = (maxRankRow._max.rank ?? recommendationRows.length) + 1;
   const id = `rec-ai-${randomUUID()}`;
@@ -326,7 +352,7 @@ export async function generateRecommendation(
       riskLevel: generated.riskLevel,
       confidence,
       status: "pending_review",
-      tags: generated.tags,
+      tags,
       rationale: generated.rationale,
       scoreBreakdown: scoreBreakdown as unknown as Prisma.InputJsonValue,
       modelVersion,
@@ -335,11 +361,8 @@ export async function generateRecommendation(
       dataSource: "live", // pipeline-produced, not a seeded fixture
       auditLogs: {
         create: {
-          action: "generated",
-          comment:
-            ragResults.length > 0
-              ? `Generated with ${ragResults.length} retrieved RAG chunks and simulated market context.`
-              : "Generated with simulated market context; RAG retrieval returned no chunks.",
+          action: flaggedForReview ? "generated_flagged" : "generated",
+          comment: `${ragNote} ${confidenceNote}`,
         },
       },
     },

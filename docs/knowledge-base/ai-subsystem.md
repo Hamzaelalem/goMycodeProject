@@ -72,7 +72,8 @@ flowchart TD
 **Prompt construction (`buildPrompt`)** embeds: the request, excluded titles (dedupe), compact portfolio (top 8), latest signals (12), risk scores, ESG sectors, scenario snapshot, simulated market context, and the RAG block. Rules cap rationale ≤80 words, 3–5 tags, 2–4 risk factors, capital within requested range, horizon 3–8y default.
 
 **Post-processing:**
-- `computeConfidence(generated, riskScores, sectorEsgScore)` — starts from the model's confidence, applies a **risk penalty** (matched risk factors' avg vs 50), an **ESG bonus** (sector overall vs 70), and a **risk-level penalty** (high +6, medium +2, low −2 subtracted), clamped 0–100.
+- `computeConfidence(generated, riskScores, sectorEsgScore)` — starts from the model's confidence, applies a **risk penalty** (matched risk factors' avg vs 50), an **ESG bonus** (sector overall vs 70), and a **risk-level penalty** (high +6, medium +2, low −2 subtracted), clamped 0–100. This risk-adjusted value is what gets stored as `confidence`.
+- **Step-5 confidence guardrail (brief §4.1):** the LLM's raw confidence is cross-checked against the risk-adjusted estimate. When `|llm − riskAdjusted| > 15`, the rec is **flagged for review** — a `"Needs Review"` tag is appended and the audit-log action is `generated_flagged` (vs `generated`), with the reconciliation (`LLM confidence X vs risk-adjusted Y (Δ Z)`) recorded in the comment either way. Threshold constant `CONFIDENCE_REVIEW_THRESHOLD = 15`.
 - `adjustRiskScoreBreakdown` — sets the "Risk" dimension to `100 − avg(matched risk scores)`.
 - `isDuplicateTitle` / `normalizeTitle` — rejects near-duplicate titles (throws `MalformedLlmOutputError`).
 
