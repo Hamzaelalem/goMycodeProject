@@ -6,8 +6,8 @@ Observations only — **nothing here has been changed.** Each item notes impact 
 
 | # | Risk | Where | Impact |
 |---|---|---|---|
-| S1 | **No authentication/authorization anywhere.** Every API route is open; `generateRecommendation` persists to the DB behind a literal `// TODO: Add auth and role checks`. | all `app/api/**`, `lib/recommendations/generateRecommendation.ts` | Anyone who can reach the app can read/mutate portfolio data and trigger paid LLM calls |
-| S2 | **Unbounded LLM cost / no rate limiting** on `/api/recommendations/generate` and `/api/ai-assistant`. | AI routes | DoS / cost-abuse vector |
+| ~~S1~~ | ~~No authentication anywhere.~~ **PARTIALLY ADDRESSED 2026-07-21** — a shared-password gate (`proxy.ts` + `lib/auth/session.ts`) now fronts all pages + API routes; unauthenticated requests get `401` / redirect to `/login`. **Still open:** no per-user identity and **no authorization/roles** (everyone who has the password has full access, including approve/reject and `generate`). The `// TODO: Add auth and role checks` in `generateRecommendation` is now behind the gate but still has no *role* check. | `proxy.ts`, `lib/auth/session.ts`, `lib/recommendations/generateRecommendation.ts` | Access now requires the shared password; fine-grained authz is future work |
+| S2 | **Unbounded LLM cost / no rate limiting** on `/api/recommendations/generate` and `/api/ai-assistant`. Now behind the password gate, but an authenticated user can still spam paid calls. | AI routes | DoS / cost-abuse vector |
 | S3 | **`GEMINI_API_KEY` sometimes passed as a query param** (`…:streamGenerateContent?…&key=`) in the assistant route vs header (`x-goog-api-key`) elsewhere. | `app/api/ai-assistant/route.ts` | Key can leak into logs/proxies; standardize on the header |
 | S4 | Dev DB password committed in `docker-compose.yml` / `config/database.env`. | config | Acceptable for local dev; must not carry to shared/prod |
 
@@ -62,7 +62,7 @@ Verified with reference searches, `tsc --noEmit` (clean), and lint (no new issue
 
 ## Suggested improvement backlog (future phases, prioritized)
 
-1. **Add authentication + authorization** and gate mutating/AI routes (S1, S2).
+1. ~~**Add authentication**~~ — ✅ shared-password gate done 2026-07-21 (`proxy.ts`). **Remaining:** per-user identity + **authorization/roles** and rate limiting on mutating/AI routes (S1 authz, S2).
 2. **Standardize the Gemini key** to the header everywhere (S3).
 3. **Consolidate the data-fetch path** — keep the store; remove/retire `useData.ts` or repurpose it (D3).
 4. **Extract shared helpers:** status mapping, approve/reject action, LLM provider selection + config (D1, D2, D4, D5).

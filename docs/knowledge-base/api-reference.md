@@ -1,6 +1,8 @@
 # API Reference
 
-All routes are Next.js App Router handlers under `app/api/**/route.ts`. Domain reads are consumed by `useGlobalStore.bootstrapData()`; mutations by `lib/api/mutations.ts` and store actions. Row→domain mapping via `lib/mappers/*`. No authentication exists on any route.
+All routes are Next.js App Router handlers under `app/api/**/route.ts`. Domain reads are consumed by `useGlobalStore.bootstrapData()`; mutations by `lib/api/mutations.ts` and store actions. Row→domain mapping via `lib/mappers/*`.
+
+**Authentication:** a shared-password gate in `proxy.ts` (Next.js 16's renamed `middleware.ts`) fronts the entire app. Every route below requires a valid signed session cookie (`dl_session`) except `POST /api/auth/login` and `POST /api/auth/logout`. Unauthenticated API calls return `401 { error:"Unauthorized" }`; unauthenticated page loads redirect to `/login`. See the **Auth** section below and `lib/auth/session.ts`.
 
 Legend: **params** = query string; **body** = JSON. Success/error status codes noted.
 
@@ -133,6 +135,25 @@ Legend: **params** = query string; **body** = JSON. Success/error status codes n
 - **Logic:** `Promise.all([ recommendation.findMany({ where, orderBy:{ updatedAt:"desc" } }), workflowLogEntry.findMany({ orderBy:{ timestamp:"asc" } }) ])`.
 - **Response:** `200 { recommendations: Recommendation[], workflowLogs: WorkflowLogEntry[] }` · `500 { error }`.
 - **Note:** `bootstrapData` reads only `workflowLogs` from this response.
+
+---
+
+## Auth
+
+Shared-password access gate. There is **no per-user identity** — a correct password mints a signed session cookie that grants full access. Implemented in `lib/auth/session.ts` (HMAC-SHA256 via Web Crypto) and enforced globally by `proxy.ts`. Requires `AUTH_PASSWORD` **and** `AUTH_SECRET` env vars (both public paths below still return `500` / block if unset).
+
+### `POST /api/auth/login`
+- **Runtime:** `nodejs`. Public (not gated).
+- **Body:** `{ password: string }`.
+- **Logic:** constant-time compare against `AUTH_PASSWORD`; on success `createSessionToken()` (8h expiry) → sets `dl_session` cookie (`httpOnly`, `sameSite:lax`, `secure` in production, `maxAge` 8h).
+- **Response:** `200 { ok:true }` (+ `Set-Cookie`) · `401 { error:"Incorrect password" }` · `400 { error:"Invalid request body" }` · `500 { error:"Auth is not configured" }`.
+- **Consumers:** `app/login/page.tsx`.
+
+### `POST /api/auth/logout`
+- **Runtime:** `nodejs`. Public (not gated).
+- **Logic:** clears the `dl_session` cookie (`maxAge:0`).
+- **Response:** `200 { ok:true }`.
+- **Consumers:** Topbar sign-out button.
 
 ---
 

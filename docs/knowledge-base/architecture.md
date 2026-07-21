@@ -104,6 +104,8 @@ docker-compose.yml        local Postgres + pgvector
 
 | Variable | Purpose | Default |
 |---|---|---|
+| `AUTH_PASSWORD` | Shared access password for the `proxy.ts` gate | unset → app blocked, login returns 500 |
+| `AUTH_SECRET` | HMAC key signing the `dl_session` cookie | unset → app blocked (must be set with `AUTH_PASSWORD`) |
 | `DATABASE_URL` | Postgres connection | from `config/database.env` (`…@127.0.0.1:5433/client_ecc`) |
 | `GEMINI_API_KEY` | Enables Gemini path (chat, generate, embeddings) | unset → Ollama fallback |
 | `GEMINI_MODEL` | Chat/generation model | `gemini-2.5-flash` |
