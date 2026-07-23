@@ -185,26 +185,45 @@ function buildLeanPrompt(input: {
   riskFactorNames: string[];
   ragContext: string;
 }): string {
-  const excluded = input.existingTitles.slice(0, 12);
+  const excluded = input.existingTitles.slice(0, 8);
   const recent = input.recommendations
-    .slice(0, 5)
+    .slice(0, 3)
     .map((rec) => `${rec.title} [${rec.sector}/${rec.country}]`);
 
-  return `Generate ONE new investment recommendation for the CLIENT Executive Command Center.
-Return a single JSON object only — no markdown, no prose.
+  // Provide a concrete example so small models (1b–3b) can mimic the structure.
+  const example = JSON.stringify({
+    title: "Example Solar Farm Investment",
+    region: "North Africa",
+    sector: "Renewable Energy",
+    country: "Morocco",
+    capitalUsd: 50000000,
+    irrPct: 14.2,
+    horizonYears: 5,
+    riskLevel: "medium",
+    confidence: 72,
+    tags: ["solar", "green-energy", "emerging-market"],
+    rationale: "Strong solar irradiance and government incentives make this a compelling opportunity with manageable currency risk.",
+    scoreBreakdown: SCORE_DIMENSIONS.map((d) => ({ dimension: d, score: 65 })),
+    riskFactors: input.riskFactorNames.slice(0, 2),
+  });
 
-Schema:
-{"title":string,"region":string,"sector":string,"country":string,"capitalUsd":number,"irrPct":number,"horizonYears":number,"riskLevel":"low"|"medium"|"high","confidence":number,"tags":string[],"rationale":string,"scoreBreakdown":[${SCORE_DIMENSIONS.map((d) => `{"dimension":"${d}","score":number}`).join(",")}],"riskFactors":string[]}
+  return `Generate ONE new investment recommendation. Return ONLY a JSON object.
+
+EXAMPLE (follow this exact structure but with DIFFERENT data):
+${example}
+
+ALL fields are required. scoreBreakdown MUST have exactly these 6 dimensions: ${SCORE_DIMENSIONS.map((d) => `"${d}"`).join(", ")}. Each score is 0-100.
+riskLevel MUST be "low", "medium", or "high". confidence is 0-100. irrPct is -20 to 50.
 
 Rules:
-- rationale under 60 words; 3-5 tags; 2-4 riskFactors chosen from ${JSON.stringify(input.riskFactorNames)}.
-- Do not reuse an excluded title; prefer a different country or thesis.
-- Honor the request's focus fields and capital/horizon when provided.
+- rationale under 60 words; 3-5 tags; 2-4 riskFactors from ${JSON.stringify(input.riskFactorNames)}.
+- Do NOT reuse any excluded title; use a different country or thesis.
+- Honor the request's focus fields when provided.
 
 Request: ${safeJson(input.request)}
 Excluded titles: ${safeJson(excluded)}
-Recent recommendations: ${safeJson(recent)}
-${input.ragContext ? `Grounding: ${input.ragContext}` : ""}`;
+Recent: ${safeJson(recent)}
+${input.ragContext ? `Context: ${input.ragContext}` : ""}`;
 }
 
 function buildPrompt(input: {
@@ -316,15 +335,22 @@ export async function generateRecommendation(
     prisma.recommendation.aggregate({ _max: { rank: true } }),
   ]);
 
+  const provider = resolveProvider(request.provider);
+
+  // Skip RAG retrieval for local generation: it embeds the query with a
+  // different Ollama model (nomic-embed-text), which forces the chat model to
+  // unload/reload around it — the main reason local generation was ~7x slower
+  // than raw inference. The lean prompt is grounded in DB context instead.
   let ragResults: SearchResult[] = [];
-  try {
-    ragResults = await searchDocuments(buildRagQuery(request), 6);
-  } catch (error) {
-    console.warn("[generateRecommendation] RAG retrieval failed; continuing without retrieved chunks", error);
+  if (provider !== "ollama") {
+    try {
+      ragResults = await searchDocuments(buildRagQuery(request), 6);
+    } catch (error) {
+      console.warn("[generateRecommendation] RAG retrieval failed; continuing without retrieved chunks", error);
+    }
   }
 
   const mappedRecommendations = recommendationRows.map(mapRecommendationFromDb);
-  const provider = resolveProvider(request.provider);
 
   // Local inference is CPU-bound, so send Ollama a compact prompt; Gemini gets
   // the full context.
