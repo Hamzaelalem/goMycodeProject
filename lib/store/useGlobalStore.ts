@@ -47,7 +47,7 @@ interface GlobalStore {
   isRecommendationDrawerOpen: boolean;
   aiDrawerContext: string;
   aiDrawerInitialMessage: string | null;
-  aiModel: "ollama" | "gemini";
+  aiModel: "ollama" | "gemini" | "groq";
   aiPersona: "standard" | "risk" | "esg" | "conservative";
   scenarioInputs: ScenarioInputs;
   savedScenarios: Array<{
@@ -74,7 +74,7 @@ interface GlobalStore {
   setAiDrawerInitialMessage: (msg: string | null) => void;
   setScenarioInputs: (inputs: ScenarioInputs) => void;
   resetScenarioInputs: () => void;
-  setAiModel: (model: "ollama" | "gemini") => void;
+  setAiModel: (model: "ollama" | "gemini" | "groq") => void;
   setAiPersona: (persona: "standard" | "risk" | "esg" | "conservative") => void;
   saveScenarioAction: (
     name: string,
@@ -150,7 +150,7 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   isRecommendationDrawerOpen: false,
   aiDrawerContext: "",
   aiDrawerInitialMessage: null,
-  aiModel: "gemini",
+  aiModel: "groq",
   aiPersona: "standard",
   scenarioInputs: DEFAULT_INPUTS,
   savedScenarios: [],

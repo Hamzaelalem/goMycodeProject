@@ -12,6 +12,9 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
 
+const GROQ_BASE_URL = process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1";
+const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+
 const PERSONAS: Record<string, string> = {
   standard: `You are a standard investment analyst AI assistant for the CLIENT Executive Command Center.
 You help portfolio executives understand AI-generated recommendations, risk factors, ESG scores, and scenario outcomes.
@@ -216,6 +219,93 @@ export async function POST(req: NextRequest) {
 
     } catch (geminiError) {
       console.warn("[AI Assistant] Gemini stream failed, falling back to Ollama:", geminiError);
+    }
+  }
+
+  // ── Route 1.5: Groq Streaming (OpenAI-compatible SSE) ──────────────────────
+  if (modelType === "groq" && process.env.GROQ_API_KEY) {
+    const groqMessages = [
+      { role: "system", content: systemPrompt },
+      ...history.slice(-10).map((m) => ({
+        role: m.role === "user" ? "user" : "assistant",
+        content: m.text,
+      })),
+    ];
+    if (groqMessages.length > 1 && groqMessages[groqMessages.length - 1].role === "user") {
+      groqMessages[groqMessages.length - 1].content = fullUserMessage;
+    } else {
+      groqMessages.push({ role: "user", content: fullUserMessage });
+    }
+
+    try {
+      const groqRes = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          temperature: 0.3,
+          max_tokens: 1024,
+          stream: true,
+          messages: groqMessages,
+        }),
+      });
+
+      if (!groqRes.ok || !groqRes.body) {
+        throw new Error(`Groq stream call failed: ${groqRes.status} ${groqRes.statusText}`);
+      }
+
+      const encoder = new TextEncoder();
+      const groqStream = groqRes.body;
+
+      const readable = new ReadableStream({
+        async start(controller) {
+          const reader = groqStream.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() ?? "";
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith("data: ")) {
+                  const data = trimmed.slice(6);
+                  if (data === "[DONE]") { controller.close(); return; }
+                  try {
+                    const json = JSON.parse(data);
+                    const token = json.choices?.[0]?.delta?.content ?? "";
+                    if (token) controller.enqueue(encoder.encode(token));
+                  } catch { /* parse error — skip */ }
+                }
+              }
+            }
+          } catch { /* client disconnected */ }
+          finally {
+            reader.releaseLock();
+            try { controller.close(); } catch { /* already closed */ }
+          }
+        },
+      });
+
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-AI-Model": `groq:${GROQ_MODEL}`,
+          "X-RAG-Used": ragContextBlock ? "true" : "false",
+        },
+      });
+    } catch (groqError) {
+      console.warn("[AI Assistant] Groq stream failed, falling back to Ollama:", groqError);
     }
   }
 

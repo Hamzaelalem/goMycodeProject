@@ -47,6 +47,17 @@ export function AIAssistantDrawer() {
               <button
                 type="button"
                 className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                  aiModel === "groq"
+                    ? "bg-background shadow text-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setAiModel("groq")}
+              >
+                Groq
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
                   aiModel === "gemini"
                     ? "bg-background shadow text-foreground font-semibold"
                     : "text-muted-foreground hover:text-foreground"
