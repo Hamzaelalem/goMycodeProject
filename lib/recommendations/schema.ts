@@ -5,9 +5,9 @@ import type {
   ScoreDimension,
 } from "@/types";
 
-export type LlmProvider = "gemini" | "ollama";
+export type LlmProvider = "gemini" | "ollama" | "groq";
 
-export const LLM_PROVIDERS: LlmProvider[] = ["gemini", "ollama"];
+export const LLM_PROVIDERS: LlmProvider[] = ["gemini", "ollama", "groq"];
 
 export type GenerateRecommendationRequest = {
   focusSector?: string;
@@ -54,7 +54,13 @@ function cleanOptionalString(value: unknown): string | undefined {
 }
 
 function cleanNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  // Small LLMs (1b–3b) sometimes emit numbers as strings — coerce them.
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -74,10 +80,11 @@ function requireBoundedNumber(
   max: number,
 ): number {
   const value = cleanNumber(record[key]);
-  if (value === undefined || value < min || value > max) {
-    throw new RecommendationValidationError(`${key} must be between ${min} and ${max}`);
+  if (value === undefined) {
+    throw new RecommendationValidationError(`${key} must be a number (got ${typeof record[key]})`);
   }
-  return value;
+  // Clamp instead of rejecting — salvages responses where the model is slightly out of range.
+  return clampNumber(value, min, max);
 }
 
 function parseStringArray(value: unknown, key: string): string[] {
@@ -94,23 +101,32 @@ function parseStringArray(value: unknown, key: string): string[] {
 }
 
 function parseScoreBreakdown(value: unknown): RecommendationScoreBreakdown[] {
-  if (!Array.isArray(value)) {
-    throw new RecommendationValidationError("scoreBreakdown must be an array");
-  }
-
   const byDimension = new Map<ScoreDimension, number>();
-  for (const item of value) {
-    if (!isRecord(item)) continue;
-    const dimension = item.dimension;
-    const score = cleanNumber(item.score);
-    if (
-      typeof dimension === "string" &&
-      SCORE_DIMENSIONS.includes(dimension as ScoreDimension) &&
-      score !== undefined
-    ) {
-      byDimension.set(dimension as ScoreDimension, Math.round(clampNumber(score, 0, 100)));
+
+  if (Array.isArray(value)) {
+    // Standard array format: [{dimension: "Market Size", score: 80}, ...]
+    for (const item of value) {
+      if (!isRecord(item)) continue;
+      const dimension = item.dimension;
+      const score = cleanNumber(item.score);
+      if (
+        typeof dimension === "string" &&
+        SCORE_DIMENSIONS.includes(dimension as ScoreDimension) &&
+        score !== undefined
+      ) {
+        byDimension.set(dimension as ScoreDimension, Math.round(clampNumber(score, 0, 100)));
+      }
+    }
+  } else if (isRecord(value)) {
+    // Object format from small models: {"Market Size": 80, "ESG": 90, ...}
+    for (const [key, val] of Object.entries(value)) {
+      const score = cleanNumber(val);
+      if (SCORE_DIMENSIONS.includes(key as ScoreDimension) && score !== undefined) {
+        byDimension.set(key as ScoreDimension, Math.round(clampNumber(score, 0, 100)));
+      }
     }
   }
+  // If neither format matched, all dimensions default to 50 below.
 
   return SCORE_DIMENSIONS.map((dimension) => ({
     dimension,

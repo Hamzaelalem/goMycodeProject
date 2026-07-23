@@ -102,15 +102,22 @@ export default function RecommendationsPage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
+            onClick={() => void handleGenerateRecommendation("groq")}
+            disabled={generating}
+          >
+            {generatingProvider === "groq" ? "Generating…" : "Generate · Groq"}
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => void handleGenerateRecommendation("gemini")}
             disabled={generating}
           >
             {generatingProvider === "gemini" ? "Generating…" : "Generate · Gemini"}
           </Button>
           <Button
-            variant="secondary"
+            variant="outline"
             onClick={() => void handleGenerateRecommendation("ollama")}
             disabled={generating}
           >

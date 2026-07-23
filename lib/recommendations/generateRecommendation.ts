@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { generateJsonWithGemini, GEMINI_MODEL } from "@/lib/llm/gemini";
 import { generateJsonWithOllama, OLLAMA_MODEL } from "@/lib/llm/ollama";
+import { generateJsonWithGroq, GROQ_MODEL } from "@/lib/llm/groq";
 import { prisma } from "@/lib/db/prisma";
 import { mapRecommendationFromDb } from "@/lib/mappers/recommendationMapper";
 import { buildSimulatedMarketContext } from "@/lib/online/simulatedMarketContext";
@@ -37,20 +38,33 @@ export class MalformedLlmOutputError extends Error {
 /** Resolve the effective provider: explicit choice wins, else env-based. */
 function resolveProvider(
   provider: GenerateRecommendationRequest["provider"],
-): "ollama" | "gemini" {
+): "ollama" | "gemini" | "groq" {
   if (provider === "ollama") return "ollama";
   if (provider === "gemini") return "gemini";
+  if (provider === "groq") return "groq";
   return process.env.GEMINI_API_KEY ? "gemini" : "ollama";
 }
 
 async function generateRecommendationJson(
   prompt: string,
-  provider: "ollama" | "gemini",
+  provider: "ollama" | "gemini" | "groq",
 ): Promise<{ modelVersion: string; output: unknown }> {
   if (provider === "ollama") {
     return {
       modelVersion: `ollama:${OLLAMA_MODEL}`,
       output: await generateJsonWithOllama(prompt),
+    };
+  }
+
+  if (provider === "groq") {
+    if (!process.env.GROQ_API_KEY) {
+      throw new MalformedLlmOutputError(
+        "Groq was requested but GROQ_API_KEY is not set.",
+      );
+    }
+    return {
+      modelVersion: `groq:${GROQ_MODEL}`,
+      output: await generateJsonWithGroq(prompt),
     };
   }
 
