@@ -15,18 +15,13 @@ import {
   SCORE_DIMENSIONS,
   validateGeneratedRecommendationJson,
 } from "@/lib/recommendations/schema";
+import {
+  assessConfidence,
+  CONFIDENCE_REVIEW_THRESHOLD,
+  matchingRiskScores,
+  type RiskScoreLike,
+} from "@/lib/recommendations/confidence";
 import { REVIEW_FLAG_TAG, type Recommendation } from "@/types";
-import { recommendations as mockRecommendations } from "@/mock-data/recommendations";
-import { seededSignals as mockSignals } from "@/mock-data/signals";
-import { riskScores as mockRiskScores } from "@/mock-data/riskScores";
-import { esgInputs as mockEsgInputs } from "@/mock-data/esgInputs";
-
-/**
- * Brief §4.1 Step 5: if the LLM's confidence deviates from the risk-adjusted
- * estimate by more than this many points, flag the recommendation for human
- * review rather than surfacing it as a normal high-confidence result.
- */
-const CONFIDENCE_REVIEW_THRESHOLD = 15;
 
 export class MalformedLlmOutputError extends Error {
   constructor(message: string) {
@@ -120,44 +115,14 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-type RiskScoreLike = {
-  name: string;
-  score: number;
-};
-
-function computeConfidence(
-  generated: GeneratedRecommendationInput,
-  riskScores: RiskScoreLike[],
-  sectorEsgScore: number | null,
-): number {
-  const matchingRiskScores = riskScores.filter((risk) =>
-    generated.riskFactors.some(
-      (factor) => factor.toLowerCase() === risk.name.toLowerCase(),
-    ),
-  );
-  const riskBase = matchingRiskScores.length ? average(matchingRiskScores.map((r) => r.score)) : 50;
-  const riskPenalty = clamp((riskBase - 50) / 2.5, -6, 16);
-  const esgBonus = sectorEsgScore === null ? 0 : clamp((sectorEsgScore - 70) / 5, -6, 7);
-  const riskLevelPenalty =
-    generated.riskLevel === "high" ? 6 : generated.riskLevel === "medium" ? 2 : -2;
-
-  return Math.round(
-    clamp(generated.confidence - riskPenalty + esgBonus - riskLevelPenalty, 0, 100),
-  );
-}
-
 function adjustRiskScoreBreakdown(
   generated: GeneratedRecommendationInput,
   riskScores: RiskScoreLike[],
 ): GeneratedRecommendationInput["scoreBreakdown"] {
-  const matchingRiskScores = riskScores.filter((risk) =>
-    generated.riskFactors.some(
-      (factor) => factor.toLowerCase() === risk.name.toLowerCase(),
-    ),
-  );
-  if (!matchingRiskScores.length) return generated.scoreBreakdown;
+  const matched = matchingRiskScores(generated.riskFactors, riskScores);
+  if (!matched.length) return generated.scoreBreakdown;
 
-  const riskScore = Math.round(clamp(100 - average(matchingRiskScores.map((r) => r.score)), 0, 100));
+  const riskScore = Math.round(clamp(100 - average(matched.map((r) => r.score)), 0, 100));
   return generated.scoreBreakdown.map((item) =>
     item.dimension === "Risk" ? { ...item, score: riskScore } : item,
   );
@@ -407,8 +372,14 @@ export async function generateRecommendation(
     );
   }
 
+  // The saved row honours the request's focus fields, so score ESG against the
+  // same sector that will be persisted — not the one the LLM happened to emit.
+  const region = request.focusRegion ?? generated.region;
+  const sector = request.focusSector ?? generated.sector;
+  const country = request.focusCountry ?? generated.country;
+
   const matchedEsg = esgRows.find(
-    (row) => row.sector.toLowerCase() === generated.sector.toLowerCase(),
+    (row) => row.sector.toLowerCase() === sector.toLowerCase(),
   );
   const matchedEsgPayload = matchedEsg?.payload as { scores?: { overall?: number } } | undefined;
   const sectorEsgScore =
@@ -418,22 +389,26 @@ export async function generateRecommendation(
   const capitalUsd = request.capitalRangeUsd
     ? Math.round(clamp(generated.capitalUsd, request.capitalRangeUsd[0], request.capitalRangeUsd[1]))
     : generated.capitalUsd;
-  // Step 5 — cross-check the LLM's self-reported confidence against the
-  // risk-adjusted estimate. Large divergence means the model is out of step
-  // with the risk engine, so flag it for a human instead of trusting it.
-  const riskAdjustedConfidence = computeConfidence(generated, riskRows, sectorEsgScore);
-  const confidenceDeviation = Math.abs(generated.confidence - riskAdjustedConfidence);
-  const flaggedForReview = confidenceDeviation > CONFIDENCE_REVIEW_THRESHOLD;
-  const confidence = riskAdjustedConfidence;
+  // Step 5 — cross-check the LLM's self-reported confidence against an
+  // independent risk-adjusted estimate. Large divergence means the model is out
+  // of step with the portfolio and risk engine, so flag it for a human.
+  const { confidence, independentEstimate, deviation, flaggedForReview } = assessConfidence({
+    llmConfidence: generated.confidence,
+    riskLevel: generated.riskLevel,
+    riskFactors: generated.riskFactors,
+    riskScores: riskRows,
+    sectorEsgScore,
+    portfolioConfidences: recommendationRows.map((row) => row.confidence),
+  });
   const tags = flaggedForReview ? [...generated.tags, REVIEW_FLAG_TAG] : generated.tags;
 
   const ragNote =
     ragResults.length > 0
       ? `Generated with ${ragResults.length} retrieved RAG chunks and simulated market context.`
       : "Generated with simulated market context; RAG retrieval returned no chunks.";
-  const confidenceNote = `LLM confidence ${generated.confidence} vs risk-adjusted ${riskAdjustedConfidence} (Δ${confidenceDeviation}).${
+  const confidenceNote = `LLM confidence ${generated.confidence} vs independent risk-adjusted estimate ${independentEstimate} (Δ${deviation}); stored confidence ${confidence}.${
     flaggedForReview
-      ? " Flagged for human review: confidence variance exceeds 15 points."
+      ? ` Flagged for human review: confidence variance exceeds ${CONFIDENCE_REVIEW_THRESHOLD} points.`
       : ""
   }`;
 
@@ -447,9 +422,9 @@ export async function generateRecommendation(
       id,
       rank,
       title: generated.title,
-      region: request.focusRegion ?? generated.region,
-      sector: request.focusSector ?? generated.sector,
-      country: request.focusCountry ?? generated.country,
+      region,
+      sector,
+      country,
       capitalUsd,
       irrPct: generated.irrPct,
       horizonYears: request.horizonYears ?? generated.horizonYears,

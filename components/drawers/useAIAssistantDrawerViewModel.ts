@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 
 export type Msg = { id: string; role: "user" | "assistant"; text: string };
@@ -10,7 +10,6 @@ export function useAIAssistantDrawerViewModel() {
   const context = useGlobalStore((s) => s.aiDrawerContext);
   const closeAIDrawer = useGlobalStore((s) => s.closeAIDrawer);
   const getPortfolioSnapshot = useGlobalStore((s) => s.getPortfolioSnapshot);
-  const initialMessage = useGlobalStore((s) => s.aiDrawerInitialMessage);
   const setInitialMessage = useGlobalStore((s) => s.setAiDrawerInitialMessage);
   const aiModel = useGlobalStore((s) => s.aiModel);
   const aiPersona = useGlobalStore((s) => s.aiPersona);
@@ -70,12 +69,26 @@ export function useAIAssistantDrawerViewModel() {
     }
   }
 
-  useEffect(() => {
-    if (open && initialMessage) {
-      void ask(initialMessage);
-      setInitialMessage(null);
-    }
-  }, [open, initialMessage]);
+  // Effect event: always sees the latest `ask` without re-running the effect
+  // when it changes (it's recreated every render).
+  const sendInitialMessage = useEffectEvent((message: string) => {
+    setInitialMessage(null);
+    void ask(message);
+  });
+
+  // The drawer is always mounted (AppShell), so react to the store transition in a
+  // subscription callback instead of setting state synchronously in an effect.
+  useEffect(
+    () =>
+      useGlobalStore.subscribe((state, prev) => {
+        const message = state.aiDrawerInitialMessage;
+        if (!state.isAIDrawerOpen || !message) return;
+        if (state.isAIDrawerOpen !== prev.isAIDrawerOpen || message !== prev.aiDrawerInitialMessage) {
+          sendInitialMessage(message);
+        }
+      }),
+    [],
+  );
 
   function handleCopy() {
     const last = [...messages].reverse().find((m) => m.role === "assistant");

@@ -15,7 +15,8 @@
     "db:migrate:dev": "env-cmd -f config/database.env npx prisma migrate dev",
     "db:seed": "env-cmd -f config/database.env npx prisma db seed",
     "db:studio": "env-cmd -f config/database.env npx prisma studio",
-    "db:setup": "env-cmd -f config/database.env npx prisma migrate deploy && env-cmd -f config/database.env npx prisma db seed"
+    "db:setup": "env-cmd -f config/database.env npx prisma migrate deploy && env-cmd -f config/database.env npx prisma db seed",
+    "test": "vitest run"
   },
   "prisma": {
     "seed": "env-cmd -f config/database.env -- npx tsx prisma/seed.ts"
@@ -59,6 +60,7 @@
     "prisma": "5.22.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

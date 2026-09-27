@@ -10,7 +10,6 @@ import { useWorkflowViewModel, mapStatus } from "./useWorkflowViewModel";
 export default function WorkflowPage() {
   const {
     recs,
-    selectedId,
     setSelectedId,
     comment,
     setComment,

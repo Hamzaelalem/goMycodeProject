@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { searchDocuments, formatContextBlock } from "@/lib/rag/search";
 import { clientKey, rateLimit, tooManyRequestsResponse } from "@/lib/rateLimit";
 
@@ -149,10 +149,11 @@ export async function POST(req: NextRequest) {
 
     try {
       const geminiRes = await fetch(
-        `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
+        `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // Key in a header, never the URL, so it can't leak into proxy/access logs.
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: JSON.stringify({
             contents: geminiHistory,
             systemInstruction: {

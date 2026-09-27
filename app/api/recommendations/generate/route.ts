@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
@@ -37,6 +38,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "LLM output was malformed", detail: error.message },
         { status: 502 },
+      );
+    }
+
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      console.error("[POST /api/recommendations/generate] database unreachable", error.message);
+      return NextResponse.json(
+        { error: "Database is unavailable — start it with `npm run db:up` and try again." },
+        { status: 503 },
       );
     }
 

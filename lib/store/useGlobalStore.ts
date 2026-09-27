@@ -249,8 +249,10 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
         console.warn("[useGlobalStore] PATCH recommendation failed; reverted optimistic update");
         return;
       }
+      const { recommendation, workflowLogEntry } = result.data;
       set((state) => ({
-        recommendations: state.recommendations.map((r) => (r.id === id ? result.data! : r)),
+        recommendations: state.recommendations.map((r) => (r.id === id ? recommendation : r)),
+        workflowLogEntries: [...state.workflowLogEntries, workflowLogEntry],
       }));
     })();
   },

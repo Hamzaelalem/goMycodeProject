@@ -1,4 +1,10 @@
-import type { EsgSectorInputs, Recommendation, RecommendationDetail, ScenarioInputs } from "@/types";
+import type {
+  EsgSectorInputs,
+  Recommendation,
+  RecommendationDetail,
+  ScenarioInputs,
+  WorkflowLogEntry,
+} from "@/types";
 import type { GenerateRecommendationRequest } from "@/lib/recommendations/schema";
 import type { IngestMode, IngestSummary } from "@/lib/ingest/types";
 import type { ScenarioBundle } from "@/lib/scenarios/compute";
@@ -8,10 +14,15 @@ export type UpdateRecommendationStatusPayload = {
   comment?: string;
 };
 
+export type UpdateRecommendationStatusResult = {
+  recommendation: Recommendation;
+  workflowLogEntry: WorkflowLogEntry;
+};
+
 export async function updateRecommendationStatusApi(
   id: string,
   payload: UpdateRecommendationStatusPayload,
-): Promise<{ success: boolean; data?: Recommendation; error?: string }> {
+): Promise<{ success: boolean; data?: UpdateRecommendationStatusResult; error?: string }> {
   try {
     const res = await fetch(`/api/recommendations/${id}`, {
       method: "PATCH",
@@ -22,7 +33,7 @@ export async function updateRecommendationStatusApi(
       const err = (await res.json().catch(() => ({}))) as { error?: string };
       return { success: false, error: err.error ?? `HTTP ${res.status}` };
     }
-    const data = (await res.json()) as Recommendation;
+    const data = (await res.json()) as UpdateRecommendationStatusResult;
     return { success: true, data };
   } catch {
     return { success: false, error: "Network error" };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { updateEsgSectorApi } from "@/lib/api/mutations";
 import type { EsgSectorInputs } from "@/types";
@@ -12,23 +12,30 @@ export function useEsgViewModel() {
   const activeSectorFilter = useGlobalStore((s) => s.activeSectorFilter);
   const setActiveSectorFilter = useGlobalStore((s) => s.setActiveSectorFilter);
 
-  const [data, setData] = useState<EsgSectorInputs[]>(() => useGlobalStore.getState().esgSectors);
-  const [sector, setSector] = useState<string>(
-    selected?.sector ?? useGlobalStore.getState().esgSectors[0]?.sector ?? "Solar & Energy",
+  // `data` is an editable draft of the store's sectors (KPI edits stay local until saved).
+  const [data, setData] = useState<EsgSectorInputs[]>(esgSectors);
+  const [draftSource, setDraftSource] = useState(esgSectors);
+  const [sector, setSector] = useState<string>(() =>
+    activeSectorFilter && esgSectors.some((d) => d.sector === activeSectorFilter)
+      ? activeSectorFilter
+      : selected?.sector ?? esgSectors[0]?.sector ?? "Solar & Energy",
   );
+  const [prevSectorFilter, setPrevSectorFilter] = useState(activeSectorFilter);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // Reset the draft when the store's data changes, and follow the global sector
+  // filter — adjusted during render rather than in effects to avoid a cascading re-render.
+  if (draftSource !== esgSectors) {
+    setDraftSource(esgSectors);
     setData(esgSectors);
-  }, [esgSectors]);
-
-  useEffect(() => {
-    if (!activeSectorFilter) return;
-    if (data.some((d) => d.sector === activeSectorFilter)) {
+  }
+  if (prevSectorFilter !== activeSectorFilter) {
+    setPrevSectorFilter(activeSectorFilter);
+    if (activeSectorFilter && data.some((d) => d.sector === activeSectorFilter)) {
       setSector(activeSectorFilter);
     }
-  }, [activeSectorFilter, data]);
+  }
 
   function syncSector(next: string) {
     setSector(next);

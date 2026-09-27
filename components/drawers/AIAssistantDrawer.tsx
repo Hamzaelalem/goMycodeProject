@@ -82,7 +82,7 @@ export function AIAssistantDrawer() {
 
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-muted-foreground">Analyst persona</span>
-            <Select value={aiPersona} onValueChange={(v) => setAiPersona(v as any)}>
+            <Select value={aiPersona} onValueChange={(v) => setAiPersona(v as typeof aiPersona)}>
               <SelectTrigger className="w-[150px] h-7 text-[11px] px-2 bg-background border-border">
                 <SelectValue placeholder="Persona" />
               </SelectTrigger>

@@ -149,7 +149,7 @@ export function parseGenerateRecommendationRequest(
 
   const provider = cleanOptionalString(value.provider);
   if (provider && !LLM_PROVIDERS.includes(provider as LlmProvider)) {
-    throw new RecommendationValidationError("provider must be gemini or ollama");
+    throw new RecommendationValidationError(`provider must be one of: ${LLM_PROVIDERS.join(", ")}`);
   }
 
   const horizonYears = cleanNumber(value.horizonYears);

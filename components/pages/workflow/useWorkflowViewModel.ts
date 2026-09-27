@@ -31,9 +31,9 @@ export function useWorkflowViewModel() {
       setWorkflowFocusRecommendationId(null);
       return;
     }
-    setSelectedId(focusId);
     const id = focusId;
     requestAnimationFrame(() => {
+      setSelectedId(id);
       rowRefs.current[id]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       setWorkflowFocusRecommendationId(null);
     });

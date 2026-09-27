@@ -66,11 +66,40 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
   };
 }
 
-/** Build a rate-limit key from the caller's IP for a given route scope. */
+/** Current state of a window without consuming a slot (e.g. to check a lockout first). */
+export function peekRateLimit(key: string, limit: number): RateLimitResult {
+  const now = Date.now();
+  const existing = store.get(key);
+  if (!existing || now >= existing.resetAt) {
+    return { ok: true, limit, remaining: limit, resetAt: now, retryAfterSeconds: 0 };
+  }
+  const ok = existing.count < limit;
+  return {
+    ok,
+    limit,
+    remaining: Math.max(0, limit - existing.count),
+    resetAt: existing.resetAt,
+    retryAfterSeconds: ok ? 0 : Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
+  };
+}
+
+/**
+ * Build a rate-limit key for a route scope.
+ *
+ * `X-Forwarded-For` / `X-Real-IP` are client-controlled unless a reverse proxy
+ * overwrites them, so they are only trusted when `TRUST_PROXY=true`. Otherwise
+ * every caller shares one bucket per scope — a global budget cap that cannot be
+ * bypassed by spoofing a header.
+ */
 export function clientKey(req: Request, scope: string): string {
+  if (process.env.TRUST_PROXY !== "true") return `${scope}:shared`;
+
+  // The nearest trusted proxy appends the real client IP, so take the last hop.
   const forwarded = req.headers.get("x-forwarded-for");
   const ip =
-    forwarded?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
+    forwarded?.split(",").map((part) => part.trim()).filter(Boolean).pop() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
   return `${scope}:${ip}`;
 }
 
