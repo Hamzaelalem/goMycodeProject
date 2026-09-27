@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle, Eye, X } from "lucide-react";
 
 import { ConfidenceGauge } from "@/components/ui/ConfidenceGauge";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { formatCurrencyCompact, formatPct } from "@/lib/utils/formatters";
+import { isNewRecommendation } from "@/lib/recommendations/recency";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { isFlaggedForReview, REVIEW_FLAG_TAG, type Recommendation } from "@/types";
 
@@ -15,6 +17,9 @@ export function RecommendationCard({ rec }: { rec: Recommendation }) {
   const openRecommendationDrawer = useGlobalStore((s) => s.openRecommendationDrawer);
   const updateRecommendationStatus = useGlobalStore((s) => s.updateRecommendationStatus);
 
+  // Captured once per mount so render stays pure; "New" only needs hour-level accuracy.
+  const [now] = useState(() => Date.now());
+  const isNew = isNewRecommendation(rec, now);
   const flagged = isFlaggedForReview(rec);
   const displayTags = rec.tags.filter((t) => t !== REVIEW_FLAG_TAG).slice(0, 2);
   const provenanceLabel = rec.dataSource === "live" ? "AI-generated" : "Seed";
@@ -24,7 +29,14 @@ export function RecommendationCard({ rec }: { rec: Recommendation }) {
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs text-muted-foreground">#{rec.rank}</p>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              #{rec.rank}
+              {isNew ? (
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  New
+                </span>
+              ) : null}
+            </p>
             <p className="text-sm font-medium">{rec.title}</p>
             <p className="text-xs text-muted-foreground">{rec.region}</p>
           </div>

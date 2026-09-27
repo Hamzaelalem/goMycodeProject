@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 
+import { LlmProviderError } from "@/lib/llm/errors";
 import { generateJsonWithGemini, GEMINI_MODEL } from "@/lib/llm/gemini";
 import { generateJsonWithOllama, OLLAMA_MODEL } from "@/lib/llm/ollama";
 import { generateJsonWithGroq, GROQ_MODEL } from "@/lib/llm/groq";
@@ -22,6 +23,9 @@ import {
   type RiskScoreLike,
 } from "@/lib/recommendations/confidence";
 import { REVIEW_FLAG_TAG, type Recommendation } from "@/types";
+
+/** Arbitrary constant key for the Postgres advisory lock that serialises rank assignment. */
+const RECOMMENDATION_RANK_LOCK = 7_310_001;
 
 export class MalformedLlmOutputError extends Error {
   constructor(message: string) {
@@ -304,14 +308,12 @@ export async function generateRecommendation(
     riskRows,
     esgRows,
     scenarioSnapshot,
-    maxRankRow,
   ] = await Promise.all([
     prisma.recommendation.findMany({ orderBy: { rank: "asc" }, take: 20 }),
     prisma.signal.findMany({ orderBy: { timestamp: "desc" }, take: 50 }),
     prisma.riskFactorScore.findMany({ orderBy: { score: "desc" } }),
     prisma.esgSectorInput.findMany({ orderBy: { sector: "asc" } }),
     prisma.scenarioSnapshot.findUnique({ where: { key: "default" } }),
-    prisma.recommendation.aggregate({ _max: { rank: true } }),
   ]);
 
   const provider = resolveProvider(request.provider);
@@ -356,8 +358,16 @@ export async function generateRecommendation(
 
   let generated: GeneratedRecommendationInput;
   let modelVersion = `ollama:${OLLAMA_MODEL}`;
+  let llmResult: Awaited<ReturnType<typeof generateRecommendationJson>>;
   try {
-    const llmResult = await generateRecommendationJson(prompt, provider);
+    llmResult = await generateRecommendationJson(prompt, provider);
+  } catch (error) {
+    // Quota, outage, missing key or timeout — not the model's output being wrong.
+    // Full provider detail stays in the server log; the UI gets a short message.
+    console.warn(`[generateRecommendation] ${provider} failed:`, error instanceof Error ? error.message.slice(0, 500) : error);
+    throw new LlmProviderError(provider, error);
+  }
+  try {
     modelVersion = llmResult.modelVersion;
     generated = validateGeneratedRecommendationJson(llmResult.output);
   } catch (error) {
@@ -413,14 +423,18 @@ export async function generateRecommendation(
   }`;
 
   const scoreBreakdown = adjustRiskScoreBreakdown(generated, riskRows);
-  const rank = (maxRankRow._max.rank ?? recommendationRows.length) + 1;
   const id = `rec-ai-${randomUUID()}`;
 
   // TODO: Add auth and role checks before allowing generation in shared environments.
-  const saved = await prisma.recommendation.create({
+  // The next rank is read and used under a transaction-scoped advisory lock: two
+  // generations finishing together would otherwise both take max(rank) + 1.
+  const saved = await prisma.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe(`SELECT 1 AS locked FROM pg_advisory_xact_lock(${RECOMMENDATION_RANK_LOCK})`);
+    const maxRank = await tx.recommendation.aggregate({ _max: { rank: true } });
+    return tx.recommendation.create({
     data: {
       id,
-      rank,
+      rank: (maxRank._max.rank ?? 0) + 1,
       title: generated.title,
       region,
       sector,
@@ -445,6 +459,7 @@ export async function generateRecommendation(
         },
       },
     },
+    });
   });
 
   return mapRecommendationFromDb(saved);

@@ -1,6 +1,6 @@
 const GEMINI_BASE_URL =
   process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
-export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
@@ -97,6 +97,9 @@ const RECOMMENDATION_RESPONSE_SCHEMA = {
   },
 };
 
+const RETRYABLE_STATUS = new Set([500, 503]);
+const GEMINI_TRANSIENT_RETRIES = 2;
+
 /** Generate one investment recommendation as schema-constrained JSON. */
 export async function generateJsonWithGemini(prompt: string): Promise<unknown> {
   return generateStructuredJsonWithGemini(prompt, RECOMMENDATION_RESPONSE_SCHEMA);
@@ -120,7 +123,7 @@ export async function generateStructuredJsonWithGemini(
   const timeout = windowlessSetTimeout(() => controller.abort(), options.timeoutMs ?? 45_000);
 
   try {
-    const res = await fetch(`${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent`, {
+    const request = (): Promise<Response> => fetch(`${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST",
       signal: controller.signal,
       headers: {
@@ -151,6 +154,16 @@ export async function generateStructuredJsonWithGemini(
         },
       }),
     });
+
+    // "Model overloaded" (503) and transient 500s usually clear within seconds, so
+    // retry them a couple of times inside the same timeout budget. Quota (429) is
+    // not retried — waiting seconds cannot fix a daily limit.
+    let res = await request();
+    for (let attempt = 1; attempt <= GEMINI_TRANSIENT_RETRIES && RETRYABLE_STATUS.has(res.status); attempt++) {
+      await res.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      res = await request();
+    }
 
     if (!res.ok) {
       const detail = await res.text().catch(() => res.statusText);

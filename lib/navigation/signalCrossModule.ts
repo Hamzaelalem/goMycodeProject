@@ -3,7 +3,8 @@ import type { Signal } from "@/types";
 export function routeForSignal(s: Signal): string {
   switch (s.type) {
     case "risk":
-      return "/risk";
+      // Risk page removed: the Live Feed filters by the active risk factor.
+      return "/live-feed";
     case "opportunity":
       return "/recommendations";
     case "deal":
@@ -26,7 +27,7 @@ export type SignalNavigationActions = {
 
 /**
  * Applies cross-module filter sync when user clicks a signal (or picks one from search).
- * Mirrors the product spec: risk → risk + factor; opportunity → recommendations + sector;
+ * Mirrors the product spec: risk → live feed + factor; opportunity → recommendations + sector;
  * deal → workflow + target id; policy → ESG + sector (+ region for context).
  */
 export function applySignalCrossModuleLinks(signal: Signal, a: SignalNavigationActions): void {

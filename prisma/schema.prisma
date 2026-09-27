@@ -162,3 +162,23 @@ model PortfolioAuditLog {
   @@index([at])
   @@map("portfolio_audit_logs")
 }
+
+/// One Adaptive Portfolio Sentinel scan (live news → AI directives) and its
+/// human sign-off. `assets` stores the full AssetRebalance[] returned to the UI.
+model SentinelScan {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  mode            String // "live-ai" | "fallback"
+  model           String
+  portfolioSource String // "database" | "demo"
+  headlineCount   Int
+  fallbackReason  String?
+  providerNote    String?
+  assets          Json
+  signedOffAt     DateTime?
+  signedOffBy     String?
+  appliedWeights  Json? // holdingId -> simulated weight %, computed server-side at sign-off
+
+  @@index([createdAt])
+  @@map("sentinel_scans")
+}

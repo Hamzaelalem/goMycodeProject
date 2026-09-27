@@ -5,6 +5,7 @@ import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { generateRecommendationApi } from "@/lib/api/mutations";
 import { isFlaggedForReview } from "@/types";
 import type { LlmProvider } from "@/lib/recommendations/schema";
+import { sortNewestFirst } from "@/lib/recommendations/recency";
 
 export function useRecommendationsViewModel() {
   const recs = useGlobalStore((s) => s.recommendations);
@@ -28,7 +29,7 @@ export function useRecommendationsViewModel() {
 
   const filtered = useMemo(
     () =>
-      recs.filter((r) => {
+      sortNewestFirst(recs).filter((r) => {
         if (region !== "all" && r.region !== region) return false;
         if (sector !== "all" && r.sector !== sector) return false;
         if (risk !== "all" && r.riskLevel !== risk) return false;

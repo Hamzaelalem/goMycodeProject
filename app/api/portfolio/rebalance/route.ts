@@ -16,6 +16,7 @@ import {
   summarizeProviderError,
 } from "@/lib/sentinel/rebalance";
 import { listHoldings } from "@/lib/portfolio/repository";
+import { listScans, saveScan } from "@/lib/sentinel/scans";
 import { portfolioHoldings as demoHoldings } from "@/mock-data/portfolio";
 import type { PortfolioHolding } from "@/types";
 
@@ -240,7 +241,7 @@ export async function POST(req: NextRequest) {
       headlineCount,
       assets,
     };
-    return NextResponse.json(body);
+    return NextResponse.json(await persist(body));
   } catch (error) {
     // Deterministic fallback: never fail the UI (LLM rate limit, outage, bad JSON, offline RSS).
     const reason = summarizeProviderError(error);
@@ -255,6 +256,26 @@ export async function POST(req: NextRequest) {
       headlineCount: countHeadlines(news),
       assets: buildAssets(holdings, weights, news, fallbackDirective),
     };
-    return NextResponse.json(body);
+    return NextResponse.json(await persist(body));
+  }
+}
+
+/** Save the scan for history/sign-off; a DB failure must not lose the live result. */
+async function persist(body: RebalanceResponse): Promise<RebalanceResponse> {
+  try {
+    return await saveScan(body);
+  } catch (error) {
+    console.warn("[rebalance] could not save scan; returning it unsaved:", summarizeProviderError(error));
+    return body;
+  }
+}
+
+/** Recent scans for the history list. */
+export async function GET() {
+  try {
+    return NextResponse.json({ scans: await listScans() });
+  } catch (error) {
+    console.error("[GET /api/portfolio/rebalance]", error);
+    return NextResponse.json({ error: "Failed to load scan history" }, { status: 500 });
   }
 }

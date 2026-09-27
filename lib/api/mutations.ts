@@ -12,7 +12,7 @@ import type { HoldingInput } from "@/lib/portfolio/validation";
 import type { GenerateRecommendationRequest } from "@/lib/recommendations/schema";
 import type { IngestMode, IngestSummary } from "@/lib/ingest/types";
 import type { ScenarioBundle } from "@/lib/scenarios/compute";
-import type { RebalanceResponse } from "@/lib/sentinel/rebalance";
+import type { RebalanceResponse, SentinelScanSummary } from "@/lib/sentinel/rebalance";
 
 export type UpdateRecommendationStatusPayload = {
   status: Recommendation["status"];
@@ -283,4 +283,20 @@ export function deleteHoldingApi(id: string) {
 
 export function importHoldingsApi(mode: "replace" | "append", rows: HoldingInput[]) {
   return portfolioRequest<{ imported: number; total: number }>("/api/portfolio/import", jsonInit("POST", { mode, rows }));
+}
+
+// ── Sentinel scan history ────────────────────────────────────────────────────
+
+export function listSentinelScansApi() {
+  return portfolioRequest<{ scans: SentinelScanSummary[] }>("/api/portfolio/rebalance");
+}
+
+export function getSentinelScanApi(id: string) {
+  return portfolioRequest<RebalanceResponse>(`/api/portfolio/rebalance/${encodeURIComponent(id)}`);
+}
+
+export function signOffSentinelScanApi(id: string) {
+  return portfolioRequest<RebalanceResponse>(`/api/portfolio/rebalance/${encodeURIComponent(id)}/signoff`, {
+    method: "POST",
+  });
 }

@@ -99,7 +99,7 @@ export function GlobalSearch() {
       setActiveRegionFilter(null);
       setActiveSectorFilter(null);
       setActiveRiskFactor(r.payload);
-      router.push("/risk");
+      router.push("/live-feed");
     }
     setOpen(false);
     setQ("");

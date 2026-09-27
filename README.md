@@ -35,7 +35,7 @@ The submission should demonstrate explainable decision support and human oversig
 | Recommendations | Review drawer, filtering, generation integrations, validation, confidence checks, approve/reject and audit records | Existing generation needs an inference provider; synthetic examples can be reviewed without generation |
 | Portfolio Sentinel | Per-holding BUY/SELL/HOLD proposals, rationale, confidence, guardrails, human sign-off and allocation simulation | Current scan fetches external news; results/sign-off/simulation are not persisted |
 | Live Feed | News ingestion, classification, deduplication, filtering, publisher links and SSE updates | Current ingestion uses external RSS; seeded signals are available for demonstration |
-| Risk and ESG | Factor scores, trends, sector scores, filters | Seeded data, not a validated live scoring service |
+| Risk and ESG | Risk factor scores feed the dashboard charts, recommendation confidence checks and the assistant (the standalone Risk page was removed); ESG sector scores and filters | Seeded data, not a validated live scoring service |
 | Scenarios | Macro controls, expected IRR, projections, sensitivity, Monte Carlo bands, saved comparisons | Assumed sensitivities; narrative generation can use external providers |
 | Market Intelligence | Portfolio impact simulation using saved holdings and the scenario engine | Simulation, not a live pricing terminal |
 | Workflow | Review actions and history | Shared reviewer identity; approval-time metric remains a placeholder |

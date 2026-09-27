@@ -60,19 +60,34 @@ export interface RebalanceResponse {
   providerNote?: string;
   headlineCount: number;
   assets: AssetRebalance[];
+  /** Saved scan id — absent only if persisting the scan failed. */
+  scanId?: string;
+  /** Human sign-off (set once, via POST /api/portfolio/rebalance/:id/signoff). */
+  signedOffAt?: string | null;
+  signedOffBy?: string | null;
+  /** holdingId → simulated weight %, computed server-side at sign-off. */
+  appliedWeights?: Record<string, number> | null;
+}
+
+/** Row in the scan history list. */
+export interface SentinelScanSummary {
+  scanId: string;
+  generatedAt: string;
+  mode: RebalanceMode;
+  model: string;
+  counts: Record<RebalanceAction, number>;
+  signedOffAt: string | null;
+}
+
+export function countActions(assets: AssetRebalance[]): Record<RebalanceAction, number> {
+  const counts: Record<RebalanceAction, number> = { BUY: 0, SELL: 0, HOLD: 0 };
+  for (const asset of assets) counts[asset.directive.action] += 1;
+  return counts;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Short, UI-safe description of a provider failure (no raw JSON bodies). */
-export function summarizeProviderError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  const status = message.match(/\((\d{3})\)/)?.[1];
-  if (status === "429") return "quota / rate limit exceeded (429)";
-  if (status) return `HTTP ${status}`;
-  if (/abort/i.test(message)) return "timed out";
-  return message.replace(/\s+/g, " ").slice(0, 160);
-}
+export { summarizeProviderError } from "@/lib/llm/errors";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

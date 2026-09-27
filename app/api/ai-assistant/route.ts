@@ -10,7 +10,7 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
 
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1";
 const GROQ_MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";

@@ -164,7 +164,7 @@ export function useLiveFeedViewModel() {
     }
     setIngestStatus(
       mode === "auto"
-        ? "Automatic fetching on (every 6h)."
+        ? "Automatic fetching on (every 30 min)."
         : mode === "manual"
           ? "On-demand only — use “Fetch latest news”."
           : "Fetching off — no signals will be pulled.",

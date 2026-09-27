@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Loader2, Radar, ShieldCheck } from "lucide-react";
+import { AlertTriangle, History, Loader2, Radar, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -127,9 +127,12 @@ export function PortfolioSentinel() {
     appliedAt,
     counts,
     actionable,
+    history,
+    signingOff,
+    recorded,
     scan,
+    openScan,
     applySimulatedRebalance,
-    resetSimulation,
   } = usePortfolioSentinelViewModel();
 
   return (
@@ -179,7 +182,8 @@ export function PortfolioSentinel() {
             <span className={cn("rounded-md border px-2 py-0.5 font-semibold", ACTION_STYLES.SELL)}>{counts.SELL} SELL</span>
             <span className={cn("rounded-md border px-2 py-0.5 font-semibold", ACTION_STYLES.HOLD)}>{counts.HOLD} HOLD</span>
             <span>
-              · {result.headlineCount} headlines · {result.model} · {new Date(result.generatedAt).toLocaleTimeString()}
+              · {result.headlineCount} headlines · {result.model} · scanned {new Date(result.generatedAt).toLocaleString()}
+              {recorded ? "" : " · not saved (database unavailable)"}
             </span>
           </div>
 
@@ -208,22 +212,61 @@ export function PortfolioSentinel() {
               </span>
             </label>
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={applySimulatedRebalance} disabled={!signedOff || appliedWeights !== null || actionable === 0}>
-                Apply simulated rebalance
+              <Button
+                onClick={() => void applySimulatedRebalance()}
+                disabled={!signedOff || appliedWeights !== null || actionable === 0 || signingOff}
+              >
+                {signingOff ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                Sign off & apply simulated rebalance
               </Button>
-              {appliedWeights ? (
-                <Button variant="outline" onClick={resetSimulation}>
-                  Reset simulation
-                </Button>
-              ) : null}
               <span className="text-xs text-muted-foreground">
                 {appliedAt
-                  ? `Applied ${new Date(appliedAt).toLocaleTimeString()} — new weights on each card, renormalised to 100% (HOLD positions shift proportionally).`
-                  : "Simulation only: no trades are executed and no records are changed."}
+                  ? `Signed off${result.signedOffBy ? ` by ${result.signedOffBy}` : ""} on ${new Date(appliedAt).toLocaleString()} — new weights on each card, renormalised to 100% (HOLD positions shift proportionally). Run a new scan to review again.`
+                  : "Simulation only: no trades are executed. The sign-off is recorded with this scan."}
               </span>
             </div>
           </div>
         </>
+      ) : null}
+
+      {history.length ? (
+        <div className="rounded-xl border border-border p-3">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <History className="h-4 w-4" aria-hidden /> Scan history
+          </p>
+          <ul className="mt-2 divide-y divide-border text-xs">
+            {history.map((item) => {
+              const active = item.scanId === result?.scanId;
+              return (
+                <li key={item.scanId}>
+                  <button
+                    type="button"
+                    onClick={() => void openScan(item.scanId)}
+                    aria-current={active ? "true" : undefined}
+                    className={cn(
+                      "flex w-full flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted",
+                      active && "bg-muted",
+                    )}
+                  >
+                    <span className="tabular-nums">{new Date(item.generatedAt).toLocaleString()}</span>
+                    <span className="text-muted-foreground">
+                      {item.counts.BUY} BUY · {item.counts.SELL} SELL · {item.counts.HOLD} HOLD ·{" "}
+                      {item.mode === "fallback" ? "fallback" : item.model}
+                    </span>
+                    <span
+                      className={cn(
+                        "font-medium",
+                        item.signedOffAt ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground",
+                      )}
+                    >
+                      {item.signedOffAt ? "Signed off" : "Not signed off"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : null}
     </section>
   );

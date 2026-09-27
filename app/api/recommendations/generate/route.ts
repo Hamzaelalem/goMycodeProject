@@ -9,6 +9,7 @@ import {
   parseGenerateRecommendationRequest,
   RecommendationValidationError,
 } from "@/lib/recommendations/schema";
+import { LlmProviderError } from "@/lib/llm/errors";
 import { clientKey, rateLimit, tooManyRequestsResponse } from "@/lib/rateLimit";
 
 // Paid LLM + RAG call — cap per caller to protect the LLM budget (brief §6).
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof RecommendationValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof LlmProviderError) {
+      return NextResponse.json({ error: error.message }, { status: error.quota ? 429 : 503 });
     }
     if (error instanceof MalformedLlmOutputError) {
       return NextResponse.json(

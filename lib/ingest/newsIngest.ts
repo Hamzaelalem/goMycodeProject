@@ -3,7 +3,21 @@ import type { Signal } from "@/types";
 import { classifyArticles, type ClassifierMethod } from "./classify";
 import { fetchGoogleNews } from "./googleNews";
 import type { IngestSummary, RawArticle, WatchItem } from "./types";
-import { getWatchlist } from "./watchlist";
+import { getIngestWatchlist } from "./watchlist";
+
+/** Newest new articles classified + inserted per run (fits free-tier LLM limits). */
+const MAX_NEW_PER_RUN = 40;
+
+/**
+ * Restrict a Google News search to recent coverage (`when:2d` by default) so
+ * repeated runs surface today's news instead of the same evergreen top stories.
+ * Override with INGEST_RECENCY (e.g. "1d", "7d"); "off" disables it.
+ */
+function withRecency(query: string): string {
+  const recency = process.env.INGEST_RECENCY ?? "2d";
+  if (recency === "off" || /\bwhen:/.test(query)) return query;
+  return `${query} when:${recency}`;
+}
 
 /** Stable, collision-resistant id for an article link (djb2 → base36). */
 function stableId(link: string): string {
@@ -63,13 +77,13 @@ export async function runNewsIngest(opts?: { limitPerQuery?: number }): Promise<
   const envLimit = Number(process.env.INGEST_LIMIT_PER_QUERY);
   const limitPerQuery =
     opts?.limitPerQuery ?? (Number.isFinite(envLimit) && envLimit > 0 ? envLimit : 6);
-  const watchlist = getWatchlist();
+  const watchlist = await getIngestWatchlist();
 
   try {
     // 1) Fetch every query (independent; failures per-query are non-fatal).
     const tagged: Tagged[] = [];
     const settled = await Promise.allSettled(
-      watchlist.map((watch) => fetchGoogleNews(watch.query, limitPerQuery)),
+      watchlist.map((watch) => fetchGoogleNews(withRecency(watch.query), limitPerQuery)),
     );
     settled.forEach((result, i) => {
       if (result.status === "fulfilled") {
@@ -102,13 +116,40 @@ export async function runNewsIngest(opts?: { limitPerQuery?: number }): Promise<
       return lastRun;
     }
 
-    // 2) Classify (batched).
-    const { method, classifications } = await classifyArticles(unique.map((t) => t.article));
+    // 2) Drop articles already stored *before* classifying, so the LLM (and its
+    //    daily quota) is only used for genuinely new news. Newest first, capped per
+    //    run to fit free-tier limits; the rest are picked up by the next run.
+    const existing = await prisma.signal.findMany({
+      where: { id: { in: unique.map(({ article }) => stableId(article.link)) } },
+      select: { id: true },
+    });
+    const existingIds = new Set(existing.map((row) => row.id));
+    const fresh = unique
+      .filter(({ article }) => !existingIds.has(stableId(article.link)))
+      .sort((a, b) => Date.parse(b.article.publishedAt) - Date.parse(a.article.publishedAt))
+      .slice(0, MAX_NEW_PER_RUN);
+
+    if (fresh.length === 0) {
+      lastRun = {
+        ok: true,
+        fetched,
+        inserted: 0,
+        duplicates: fetched,
+        queries: watchlist.length,
+        classifier: "none",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+      };
+      return lastRun;
+    }
+
+    // 3) Classify (one batched call).
+    const { method, classifications } = await classifyArticles(fresh.map((t) => t.article));
     const classifier: IngestSummary["classifier"] = method as ClassifierMethod;
 
-    // 3) Build signal rows (timestamp = now so SSE pushes them live).
+    // 4) Build signal rows (timestamp = now so SSE pushes them live).
     const now = Date.now();
-    const rows: Signal[] = unique.map(({ article, watch }, i) => {
+    const rows: Signal[] = fresh.map(({ article, watch }, i) => {
       const c = classifications[i]!;
       return {
         id: stableId(article.link),
@@ -129,7 +170,7 @@ export async function runNewsIngest(opts?: { limitPerQuery?: number }): Promise<
       };
     });
 
-    // 4) Insert, skipping any ids already present (idempotent re-runs).
+    // 5) Insert, skipping any ids already present (idempotent re-runs).
     const result = await prisma.signal.createMany({
       data: rows.map((r) => ({
         id: r.id,
@@ -155,7 +196,7 @@ export async function runNewsIngest(opts?: { limitPerQuery?: number }): Promise<
       ok: true,
       fetched,
       inserted: result.count,
-      duplicates: fetched - result.count,
+      duplicates: existingIds.size,
       queries: watchlist.length,
       classifier,
       startedAt,

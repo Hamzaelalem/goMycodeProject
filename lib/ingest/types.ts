@@ -4,7 +4,7 @@ import type { SignalSeverity, SignalType } from "@/types";
 
 /**
  * Runtime fetch mode for news ingestion:
- * - `auto`      scheduled fetches run (every 6h) + on-demand allowed
+ * - `auto`      scheduled fetches run (every 30 min) + on-demand allowed
  * - `manual`    scheduler paused; on-demand fetches only
  * - `off`       no fetching at all (scheduled and on-demand both blocked)
  */

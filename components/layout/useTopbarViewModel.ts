@@ -9,7 +9,6 @@ const TITLES: Record<string, string> = {
   "/recommendations": "Adaptive Portfolio Sentinel",
   "/market-intelligence": "Market intelligence",
   "/scenarios": "Scenario modelling",
-  "/risk": "Risk scoring",
   "/esg": "ESG scoring",
   "/workflow": "Decision workflow",
   "/live-feed": "Live signal feed",
@@ -18,7 +17,6 @@ const TITLES: Record<string, string> = {
 function contextForPath(pathname: string): string {
   if (pathname.startsWith("/recommendations"))
     return "Explain the top recommendation and its key risks";
-  if (pathname.startsWith("/risk")) return "What is driving the highest risk factors today?";
   if (pathname.startsWith("/esg")) return "How can we improve our portfolio ESG score?";
   if (pathname.startsWith("/scenarios"))
     return "Explain the difference between bear and stress scenarios";

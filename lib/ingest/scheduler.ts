@@ -1,7 +1,9 @@
 import { runNewsIngest } from "./newsIngest";
 import type { IngestMode } from "./types";
 
-const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+// Short enough that the feed feels live; cheap because runs with no new
+// articles skip the LLM classifier entirely.
+const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 // Delay the boot ingest a few seconds so the server finishes starting first.
 const BOOT_RUN_DELAY_MS = 8_000;
 
@@ -25,15 +27,15 @@ export function setIngestMode(mode: IngestMode): void {
 }
 
 /**
- * Starts the periodic news-ingestion timer (default every 6 hours). Called once
+ * Starts the periodic news-ingestion timer (default every 30 minutes). Called once
  * from `instrumentation.ts` on server boot. The interval always runs, but a tick
  * only ingests when the runtime mode is `auto` — so the mode can be toggled live
  * from the UI without a restart. In `auto` mode it also runs once shortly after
- * boot so the live feed isn't empty until the first 6h tick.
+ * boot so the live feed isn't empty until the first tick.
  *
  * Controlled by env:
  * - `INGEST_ENABLED=false`    starts in `manual` mode (scheduler paused).
- * - `INGEST_INTERVAL_MS=...`  overrides the interval (default 6h).
+ * - `INGEST_INTERVAL_MS=...`  overrides the interval (default 30 min).
  * - `INGEST_RUN_ON_BOOT=false` disables the one-time boot ingest.
  */
 export function startIngestScheduler(): void {
@@ -41,7 +43,7 @@ export function startIngestScheduler(): void {
   if (globalForScheduler.__ingestScheduler) return;
 
   const parsed = Number(process.env.INGEST_INTERVAL_MS);
-  const interval = Number.isFinite(parsed) && parsed >= 60_000 ? parsed : SIX_HOURS_MS;
+  const interval = Number.isFinite(parsed) && parsed >= 60_000 ? parsed : DEFAULT_INTERVAL_MS;
 
   globalForScheduler.__ingestScheduler = setInterval(() => {
     if (getIngestMode() !== "auto") return;

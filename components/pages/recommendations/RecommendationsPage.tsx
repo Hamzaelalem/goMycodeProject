@@ -105,14 +105,15 @@ export default function RecommendationsPage() {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Groq generation hidden (Groq still backs the Sentinel and news classification):
           <Button
             onClick={() => void handleGenerateRecommendation("groq")}
             disabled={generating}
           >
             {generatingProvider === "groq" ? "Generating…" : "Generate · Groq"}
           </Button>
+          */}
           <Button
-            variant="secondary"
             onClick={() => void handleGenerateRecommendation("gemini")}
             disabled={generating}
           >
