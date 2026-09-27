@@ -134,3 +134,31 @@ model Document {
 
   @@map("documents")
 }
+
+/// Client-managed portfolio (the "My Portfolio" page). Mirrors `PortfolioHolding`
+/// from /types/scenario.ts; seeded from mock-data/portfolio.ts when empty.
+model PortfolioHolding {
+  id        String   @id @default(cuid())
+  name      String
+  sector    String
+  region    String
+  aumUsdB   Float
+  irrPct    Float
+  riskScore Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("portfolio_holdings")
+}
+
+/// Append-only trail of portfolio edits (create / update / delete / import).
+model PortfolioAuditLog {
+  id        String   @id @default(cuid())
+  holdingId String?
+  action    String
+  detail    Json?
+  at        DateTime @default(now())
+
+  @@index([at])
+  @@map("portfolio_audit_logs")
+}

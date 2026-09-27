@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { computeScenariosApi } from "@/lib/api/mutations";
-import { mockPortfolio } from "@/mock-data/portfolio";
+import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import {
   DEFAULT_INPUTS,
   baseFromPortfolio,
@@ -15,7 +15,7 @@ import type { ScenarioInputs } from "@/types";
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 export function useMarketIntelligenceViewModel() {
-  const portfolio = mockPortfolio;
+  const portfolio = useGlobalStore((s) => s.portfolio);
   const [inputs, setInputs] = useState<ScenarioInputs>(DEFAULT_INPUTS);
   const debounced = useDebounce(inputs, 150);
 

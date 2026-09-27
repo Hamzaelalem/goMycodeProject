@@ -5,7 +5,8 @@ import { useGlobalStore } from "@/lib/store/useGlobalStore";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Portfolio overview",
-  "/recommendations": "Recommendation engine",
+  "/portfolio": "My portfolio",
+  "/recommendations": "Adaptive Portfolio Sentinel",
   "/market-intelligence": "Market intelligence",
   "/scenarios": "Scenario modelling",
   "/risk": "Risk scoring",

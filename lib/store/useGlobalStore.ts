@@ -4,7 +4,8 @@ import { create } from "zustand";
 
 import { DATA_DOMAINS, type DataDomain } from "@/lib/dataSource";
 import { updateRecommendationStatusApi, saveScenarioBundleApi } from "@/lib/api/mutations";
-import type { EsgSectorInputs, Recommendation, RiskFactorScore, Signal, WorkflowLogEntry, ScenarioInputs, ScenarioCard, IrrProjectionPoint } from "@/types";
+import type { EsgSectorInputs, Recommendation, RiskFactorScore, Signal, WorkflowLogEntry, ScenarioInputs, ScenarioCard, IrrProjectionPoint, PortfolioSummary } from "@/types";
+import { mockPortfolio } from "@/mock-data/portfolio";
 import { recommendations as mockRecommendations } from "@/mock-data/recommendations";
 import { seededSignals as mockSignals } from "@/mock-data/signals";
 import { riskScores as mockRiskScores } from "@/mock-data/riskScores";
@@ -19,6 +20,7 @@ const initialSources: Record<DataDomain, boolean> = {
   esg: false,
   scenarios: false,
   workflow: false,
+  portfolio: false,
 };
 
 interface GlobalStore {
@@ -38,6 +40,8 @@ interface GlobalStore {
   riskFactorScores: RiskFactorScore[];
   esgSectors: EsgSectorInputs[];
   workflowLogEntries: WorkflowLogEntry[];
+  /** Client-managed portfolio (My Portfolio page); demo holdings until loaded. */
+  portfolio: PortfolioSummary;
 
   bootstrapComplete: boolean;
   sourcesFromDb: Record<DataDomain, boolean>;
@@ -66,6 +70,7 @@ interface GlobalStore {
   setActiveRegionFilter: (region: string | null) => void;
   setActiveRiskFactor: (riskFactor: string | null) => void;
   setWorkflowFocusRecommendationId: (id: string | null) => void;
+  setPortfolio: (portfolio: PortfolioSummary) => void;
   addRecommendation: (r: Recommendation) => void;
   addSignal: (s: Signal) => void;
   markSignalsRead: () => void;
@@ -143,6 +148,7 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   riskFactorScores: mockRiskScores,
   esgSectors: mockEsgInputs,
   workflowLogEntries: mockWorkflowLog,
+  portfolio: mockPortfolio,
   bootstrapComplete: false,
   sourcesFromDb: { ...initialSources },
   lastBootstrapError: null,
@@ -174,6 +180,7 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
   setActiveRegionFilter: (region) => set({ activeRegionFilter: region }),
   setActiveRiskFactor: (riskFactor) => set({ activeRiskFactor: riskFactor }),
   setWorkflowFocusRecommendationId: (id) => set({ workflowFocusRecommendationId: id }),
+  setPortfolio: (portfolio) => set({ portfolio }),
   addRecommendation: (r) =>
     set((state) => ({
       recommendations: [r, ...state.recommendations],
@@ -397,6 +404,18 @@ export const useGlobalStore = create<GlobalStore>((set, get) => ({
       mark("workflow", true);
     } catch {
       mark("workflow", false);
+    }
+
+    try {
+      const pfRes = await fetch("/api/portfolio/holdings");
+      if (!pfRes.ok) throw new Error("portfolio");
+      const pfJson = (await pfRes.json()) as PortfolioSummary;
+      if (!Array.isArray(pfJson.holdings)) throw new Error("portfolio");
+      const { totalAumB, weightedIrrPct, weightedRiskScore, holdings } = pfJson;
+      set({ portfolio: { totalAumB, weightedIrrPct, weightedRiskScore, holdings } });
+      mark("portfolio", true);
+    } catch {
+      mark("portfolio", false);
     }
 
     const totalDomains = DATA_DOMAINS.length;

@@ -4,7 +4,8 @@ export type DataDomain =
   | "risk"
   | "esg"
   | "scenarios"
-  | "workflow";
+  | "workflow"
+  | "portfolio";
 
 export const DATA_DOMAINS: DataDomain[] = [
   "recommendations",
@@ -13,4 +14,5 @@ export const DATA_DOMAINS: DataDomain[] = [
   "esg",
   "scenarios",
   "workflow",
+  "portfolio",
 ];

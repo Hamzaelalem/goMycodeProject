@@ -50,14 +50,74 @@ function extractJsonObject(text: string): unknown {
   }
 }
 
+const RECOMMENDATION_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  required: [
+    "title",
+    "region",
+    "sector",
+    "country",
+    "capitalUsd",
+    "irrPct",
+    "horizonYears",
+    "riskLevel",
+    "confidence",
+    "tags",
+    "rationale",
+    "scoreBreakdown",
+    "riskFactors",
+  ],
+  properties: {
+    title: { type: "STRING" },
+    region: { type: "STRING" },
+    sector: { type: "STRING" },
+    country: { type: "STRING" },
+    capitalUsd: { type: "NUMBER" },
+    irrPct: { type: "NUMBER" },
+    horizonYears: { type: "NUMBER" },
+    riskLevel: { type: "STRING", enum: ["low", "medium", "high"] },
+    confidence: { type: "NUMBER" },
+    tags: { type: "ARRAY", items: { type: "STRING" } },
+    rationale: { type: "STRING" },
+    scoreBreakdown: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        required: ["dimension", "score"],
+        properties: {
+          dimension: {
+            type: "STRING",
+            enum: ["Market Size", "ESG", "IRR", "Risk", "Portfolio Fit", "Liquidity"],
+          },
+          score: { type: "NUMBER" },
+        },
+      },
+    },
+    riskFactors: { type: "ARRAY", items: { type: "STRING" } },
+  },
+};
+
+/** Generate one investment recommendation as schema-constrained JSON. */
 export async function generateJsonWithGemini(prompt: string): Promise<unknown> {
+  return generateStructuredJsonWithGemini(prompt, RECOMMENDATION_RESPONSE_SCHEMA);
+}
+
+/**
+ * Call Gemini with `responseMimeType: "application/json"` and a response schema,
+ * returning the parsed JSON object. Throws on HTTP errors, empty or truncated output.
+ */
+export async function generateStructuredJsonWithGemini(
+  prompt: string,
+  responseSchema: Record<string, unknown>,
+  options: { maxOutputTokens?: number; timeoutMs?: number } = {},
+): Promise<unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set");
   }
 
   const controller = new AbortController();
-  const timeout = windowlessSetTimeout(() => controller.abort(), 45_000);
+  const timeout = windowlessSetTimeout(() => controller.abort(), options.timeoutMs ?? 45_000);
 
   try {
     const res = await fetch(`${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent`, {
@@ -82,57 +142,12 @@ export async function generateJsonWithGemini(prompt: string): Promise<unknown> {
         ],
         generationConfig: {
           temperature: 0.25,
-          maxOutputTokens: 4096,
+          maxOutputTokens: options.maxOutputTokens ?? 4096,
           responseMimeType: "application/json",
           thinkingConfig: {
             thinkingBudget: 0,
           },
-          responseSchema: {
-            type: "OBJECT",
-            required: [
-              "title",
-              "region",
-              "sector",
-              "country",
-              "capitalUsd",
-              "irrPct",
-              "horizonYears",
-              "riskLevel",
-              "confidence",
-              "tags",
-              "rationale",
-              "scoreBreakdown",
-              "riskFactors",
-            ],
-            properties: {
-              title: { type: "STRING" },
-              region: { type: "STRING" },
-              sector: { type: "STRING" },
-              country: { type: "STRING" },
-              capitalUsd: { type: "NUMBER" },
-              irrPct: { type: "NUMBER" },
-              horizonYears: { type: "NUMBER" },
-              riskLevel: { type: "STRING", enum: ["low", "medium", "high"] },
-              confidence: { type: "NUMBER" },
-              tags: { type: "ARRAY", items: { type: "STRING" } },
-              rationale: { type: "STRING" },
-              scoreBreakdown: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  required: ["dimension", "score"],
-                  properties: {
-                    dimension: {
-                      type: "STRING",
-                      enum: ["Market Size", "ESG", "IRR", "Risk", "Portfolio Fit", "Liquidity"],
-                    },
-                    score: { type: "NUMBER" },
-                  },
-                },
-              },
-              riskFactors: { type: "ARRAY", items: { type: "STRING" } },
-            },
-          },
+          responseSchema,
         },
       }),
     });

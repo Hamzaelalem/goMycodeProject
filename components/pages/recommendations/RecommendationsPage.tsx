@@ -2,6 +2,7 @@
 
 import { RecommendationCard } from "@/components/cards/RecommendationCard";
 import { RecommendationDrawer } from "@/components/drawers/RecommendationDrawer";
+import { PortfolioSentinel } from "@/components/pages/sentinel/PortfolioSentinel";
 import { RecommendationSkeleton } from "@/components/skeletons/RecommendationSkeleton";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -39,6 +40,7 @@ export default function RecommendationsPage() {
 
   return (
     <div className="space-y-4">
+      <PortfolioSentinel />
       <div className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-4 lg:grid-cols-7">
         <Select value={region} onValueChange={setRegion}>
           <SelectTrigger><SelectValue placeholder="Region" /></SelectTrigger>

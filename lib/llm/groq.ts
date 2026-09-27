@@ -1,5 +1,5 @@
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1";
-export const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+export const GROQ_MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 const GROQ_TIMEOUT_MS = Number(process.env.GROQ_TIMEOUT_MS ?? 45_000);
 
 type GroqChatResponse = {
@@ -29,7 +29,10 @@ function extractJsonObject(text: string): unknown {
  * Groq inference via its OpenAI-compatible Chat Completions API. Very fast
  * (LPU hardware) with JSON mode. Model set by `GROQ_MODEL`.
  */
-export async function generateJsonWithGroq(prompt: string): Promise<unknown> {
+export async function generateJsonWithGroq(
+  prompt: string,
+  options: { maxTokens?: number } = {},
+): Promise<unknown> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY is not set");
 
@@ -47,7 +50,9 @@ export async function generateJsonWithGroq(prompt: string): Promise<unknown> {
       body: JSON.stringify({
         model: GROQ_MODEL,
         temperature: 0.25,
-        max_tokens: 1200,
+        max_tokens: options.maxTokens ?? 1200,
+        // gpt-oss models reason before answering; keep it short so it fits free-tier TPM.
+        ...(GROQ_MODEL.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}),
         response_format: { type: "json_object" },
         messages: [
           {

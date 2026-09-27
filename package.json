@@ -16,7 +16,8 @@
     "db:seed": "env-cmd -f config/database.env npx prisma db seed",
     "db:studio": "env-cmd -f config/database.env npx prisma studio",
     "db:setup": "env-cmd -f config/database.env npx prisma migrate deploy && env-cmd -f config/database.env npx prisma db seed",
-    "test": "vitest run"
+    "test": "vitest run",
+    "signals:clean": "tsx --env-file=config/database.env --env-file=.env.local scripts/clean-live-signals.ts"
   },
   "prisma": {
     "seed": "env-cmd -f config/database.env -- npx tsx prisma/seed.ts"

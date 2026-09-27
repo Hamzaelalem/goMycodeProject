@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useGlobalStore } from "@/lib/store/useGlobalStore";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { computeScenariosApi, explainScenarioApi } from "@/lib/api/mutations";
-import { mockPortfolio } from "@/mock-data/portfolio";
 import type { IrrProjectionPoint } from "@/types";
 import {
   baseFromPortfolio,
@@ -51,7 +50,8 @@ export function useScenariosViewModel() {
 
   // Portfolio-level base case (AUM-weighted). A selected recommendation overrides IRR/risk
   // for deal-in-context modelling while keeping the portfolio's AUM anchor.
-  const portfolioBase = useMemo(() => baseFromPortfolio(mockPortfolio), []);
+  const portfolio = useGlobalStore((s) => s.portfolio);
+  const portfolioBase = useMemo(() => baseFromPortfolio(portfolio), [portfolio]);
   const base = useMemo(
     () => baseFromRecommendation(selected, portfolioBase),
     [selected, portfolioBase],
@@ -195,7 +195,7 @@ export function useScenariosViewModel() {
 
   return {
     selectedRecommendationTitle,
-    portfolio: mockPortfolio,
+    portfolio,
     inputs,
     active,
     cards,

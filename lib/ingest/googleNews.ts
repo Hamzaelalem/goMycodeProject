@@ -26,14 +26,16 @@ function stripCdata(value: string): string {
 }
 
 function decodeEntities(value: string): string {
+  // `&amp;` first: Google News double-encodes descriptions (`&amp;nbsp;`), so the
+  // named entities it hides must be decoded in the passes below.
   return value
+    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&");
+    .replace(/&nbsp;/g, " ");
 }
 
 /** Remove HTML tags and collapse whitespace. */

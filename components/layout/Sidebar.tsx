@@ -2,18 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, GitBranch, LayoutDashboard, Leaf, LineChart, Radio, Shield, Sparkles, TrendingUp } from "lucide-react";
+import { Activity, Briefcase, LayoutDashboard, Radio, Shield, Sparkles, TrendingUp } from "lucide-react";
+// Hidden for the Portfolio Sentinel pivot — restore with the NAV entries below:
+// import { GitBranch, Leaf, LineChart } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/recommendations", label: "Recommendations", icon: Sparkles },
+  { href: "/portfolio", label: "My Portfolio", icon: Briefcase },
+  { href: "/recommendations", label: "Portfolio Sentinel", icon: Sparkles },
   { href: "/market-intelligence", label: "Market Intelligence", icon: TrendingUp },
-  { href: "/scenarios", label: "Scenarios", icon: LineChart },
+  // { href: "/scenarios", label: "Scenarios", icon: LineChart },
   { href: "/risk", label: "Risk", icon: Shield },
-  { href: "/esg", label: "ESG", icon: Leaf },
-  { href: "/workflow", label: "Workflow", icon: GitBranch },
+  // { href: "/esg", label: "ESG", icon: Leaf },
+  // { href: "/workflow", label: "Workflow", icon: GitBranch },
   { href: "/live-feed", label: "Live Feed", icon: Radio, pulse: true },
 ] as const;
 

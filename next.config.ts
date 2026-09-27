@@ -26,7 +26,8 @@ function loadDatabaseUrlFallback() {
 
 loadDatabaseUrlFallback();
 
-const defaultDevOrigins = ["localhost", "127.0.0.1", "192.168.1.18"];
+// LAN IPs are machine-specific — add them via NEXT_ALLOWED_DEV_ORIGINS instead of hardcoding.
+const defaultDevOrigins = ["localhost", "127.0.0.1" /* , "192.168.1.18" */];
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.NEXT_ALLOWED_DEV_ORIGINS

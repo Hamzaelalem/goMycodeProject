@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db/prisma";
+import { getPortfolioSummary } from "@/lib/portfolio/repository";
 import { mockPortfolio } from "@/mock-data/portfolio";
 import {
   baseFromPortfolio,
@@ -40,7 +41,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid scenario inputs" }, { status: 400 });
   }
 
-  const portfolioBase = baseFromPortfolio(mockPortfolio);
+  // Saved client portfolio; demo holdings only if the database is unreachable.
+  const portfolio = await getPortfolioSummary().catch(() => mockPortfolio);
+  const portfolioBase = baseFromPortfolio(portfolio);
   let base = portfolioBase;
 
   const recommendationId =

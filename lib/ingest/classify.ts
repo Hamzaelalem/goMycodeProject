@@ -1,7 +1,9 @@
 import { GEMINI_MODEL } from "@/lib/llm/gemini";
+import { generateJsonWithGroq } from "@/lib/llm/groq";
 import { OLLAMA_MODEL } from "@/lib/llm/ollama";
 import type { SignalSeverity, SignalType } from "@/types";
 import type { ArticleClassification, RawArticle } from "./types";
+import { DEAL_WORDS, heuristicSentiment, OPPORTUNITY_WORDS, POLICY_WORDS, RISK_WORDS } from "./keywords";
 
 const GEMINI_BASE_URL =
   process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
@@ -19,25 +21,12 @@ export interface ClassifyResult {
 
 // ── Deterministic heuristics (fallback / no-LLM path) ────────────────────────
 
-const RISK_WORDS = /\b(risk|crisis|default|slump|plunge|crash|sanction|conflict|war|fraud|probe|lawsuit|downgrade|recession|inflation|shortage|outage|strike|protest|ban|fine)\b/i;
-const OPPORTUNITY_WORDS = /\b(surge|rally|record|growth|expansion|breakthrough|approval|launch|partnership|upgrade|boom|profit|beat|milestone)\b/i;
-const DEAL_WORDS = /\b(acquisition|merger|acquire|buyout|stake|deal|ipo|raises?|funding|investment round|takeover)\b/i;
-const POLICY_WORDS = /\b(regulation|policy|central bank|rate hike|rate cut|tariff|law|legislation|mandate|framework|treaty|subsidy|compliance|esg)\b/i;
-
 function heuristicType(text: string): SignalType {
   if (DEAL_WORDS.test(text)) return "deal";
   if (POLICY_WORDS.test(text)) return "policy";
   if (RISK_WORDS.test(text)) return "risk";
   if (OPPORTUNITY_WORDS.test(text)) return "opportunity";
   return "market";
-}
-
-function heuristicSentiment(text: string): number {
-  let score = 0;
-  if (OPPORTUNITY_WORDS.test(text)) score += 0.5;
-  if (DEAL_WORDS.test(text)) score += 0.2;
-  if (RISK_WORDS.test(text)) score -= 0.6;
-  return Math.max(-1, Math.min(1, Number(score.toFixed(2))));
 }
 
 function heuristicSeverity(type: SignalType, sentiment: number): SignalSeverity {
@@ -189,27 +178,37 @@ async function classifyWithOllama(articles: RawArticle[]): Promise<ArticleClassi
   }
 }
 
+async function classifyWithGroq(articles: RawArticle[]): Promise<ArticleClassification[]> {
+  // ~25 output tokens per article; stays inside Groq's free-tier per-minute budget.
+  const output = await generateJsonWithGroq(buildPrompt(articles), {
+    maxTokens: Math.min(4000, 400 + articles.length * 40),
+  });
+  return mapResults(articles, extractResults(output));
+}
+
 /**
  * Classifies a batch of articles into signal `type`/`severity`/`sentiment`.
- * Uses Gemini if `GEMINI_API_KEY` is set, else local Ollama. Falls back to
- * deterministic keyword heuristics if no provider is configured or the LLM call
- * fails, so ingestion never breaks.
+ * Tries each configured LLM in turn — Gemini, then Groq, then local Ollama —
+ * and falls back to deterministic keyword heuristics if all fail, so ingestion
+ * never breaks.
  */
 export async function classifyArticles(articles: RawArticle[]): Promise<ClassifyResult> {
   if (articles.length === 0) return { method: "heuristic", classifications: [] };
 
-  const useGemini = Boolean(process.env.GEMINI_API_KEY);
-  const useOllama = !useGemini && process.env.INGEST_DISABLE_OLLAMA !== "true";
+  const providers: Array<[string, (a: RawArticle[]) => Promise<ArticleClassification[]>]> = [];
+  if (process.env.GEMINI_API_KEY) providers.push(["Gemini", classifyWithGemini]);
+  if (process.env.GROQ_API_KEY) providers.push(["Groq", classifyWithGroq]);
+  if (process.env.INGEST_DISABLE_OLLAMA !== "true") providers.push(["Ollama", classifyWithOllama]);
 
-  try {
-    if (useGemini) {
-      return { method: "llm", classifications: await classifyWithGemini(articles) };
+  for (const [name, classify] of providers) {
+    try {
+      return { method: "llm", classifications: await classify(articles) };
+    } catch (error) {
+      console.warn(
+        `[ingest] ${name} classification failed; trying next provider:`,
+        error instanceof Error ? error.message.slice(0, 200) : error,
+      );
     }
-    if (useOllama) {
-      return { method: "llm", classifications: await classifyWithOllama(articles) };
-    }
-  } catch (error) {
-    console.warn("[ingest] LLM classification failed; using heuristics:", error);
   }
 
   return { method: "heuristic", classifications: heuristicClassifyAll(articles) };

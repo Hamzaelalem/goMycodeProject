@@ -2,12 +2,17 @@ import type {
   EsgSectorInputs,
   Recommendation,
   RecommendationDetail,
+  PortfolioHolding,
+  PortfolioSummary,
   ScenarioInputs,
   WorkflowLogEntry,
 } from "@/types";
+import type { PortfolioAuditEntry } from "@/lib/portfolio/repository";
+import type { HoldingInput } from "@/lib/portfolio/validation";
 import type { GenerateRecommendationRequest } from "@/lib/recommendations/schema";
 import type { IngestMode, IngestSummary } from "@/lib/ingest/types";
 import type { ScenarioBundle } from "@/lib/scenarios/compute";
+import type { RebalanceResponse } from "@/lib/sentinel/rebalance";
 
 export type UpdateRecommendationStatusPayload = {
   status: Recommendation["status"];
@@ -208,4 +213,74 @@ export async function setIngestModeApi(
   } catch {
     return { success: false, error: "Network error" };
   }
+}
+
+export async function scanAndRebalanceApi(): Promise<{
+  success: boolean;
+  data?: RebalanceResponse;
+  error?: string;
+}> {
+  try {
+    const res = await fetch("/api/portfolio/rebalance", { method: "POST" });
+    const json = (await res.json().catch(() => ({}))) as Partial<RebalanceResponse> & { error?: string };
+    if (!res.ok || !Array.isArray(json.assets)) {
+      return { success: false, error: json.error ?? `HTTP ${res.status}` };
+    }
+    return { success: true, data: json as RebalanceResponse };
+  } catch {
+    return { success: false, error: "Network error" };
+  }
+}
+
+// ── My Portfolio ─────────────────────────────────────────────────────────────
+
+export type PortfolioResponse = PortfolioSummary & { maxHoldings: number; audit: PortfolioAuditEntry[] };
+
+type ApiResult<T> = { success: boolean; data?: T; error?: string; details?: string[] };
+
+async function portfolioRequest<T>(url: string, init?: RequestInit): Promise<ApiResult<T>> {
+  try {
+    const res = await fetch(url, init);
+    const json = (await res.json().catch(() => ({}))) as T & {
+      error?: string;
+      details?: string[];
+      rowErrors?: Array<{ row: number; errors: string[] }>;
+    };
+    if (!res.ok) {
+      const details = json.details ?? json.rowErrors?.map((r) => `Row ${r.row}: ${r.errors.join("; ")}`);
+      return { success: false, error: json.error ?? `HTTP ${res.status}`, details };
+    }
+    return { success: true, data: json };
+  } catch {
+    return { success: false, error: "Network error" };
+  }
+}
+
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+export function fetchPortfolioApi() {
+  return portfolioRequest<PortfolioResponse>("/api/portfolio/holdings");
+}
+
+export function createHoldingApi(input: HoldingInput) {
+  return portfolioRequest<{ holding: PortfolioHolding }>("/api/portfolio/holdings", jsonInit("POST", input));
+}
+
+export function updateHoldingApi(id: string, input: HoldingInput) {
+  return portfolioRequest<{ holding: PortfolioHolding }>(
+    `/api/portfolio/holdings/${encodeURIComponent(id)}`,
+    jsonInit("PATCH", input),
+  );
+}
+
+export function deleteHoldingApi(id: string) {
+  return portfolioRequest<{ ok: true }>(`/api/portfolio/holdings/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function importHoldingsApi(mode: "replace" | "append", rows: HoldingInput[]) {
+  return portfolioRequest<{ imported: number; total: number }>("/api/portfolio/import", jsonInit("POST", { mode, rows }));
 }
